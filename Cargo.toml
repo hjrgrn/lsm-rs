@@ -1,0 +1,10 @@
+[package]
+name = "lsm_tree_rs"
+version = "0.1.0"
+edition = "2024"
+authors = ["hjrgrn <187955624+hjrgrn@users.noreply.github.com>"]
+description = "TODO"
+readme = "README.md"
+repository = "TODO"
+
+[dependencies]
