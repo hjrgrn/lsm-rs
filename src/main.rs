@@ -4,12 +4,11 @@ use std::{
     collections::HashMap,
     fs::File,
     hash::Hash,
-    io::{self, BufWriter},
-    path::{self, PathBuf},
-    str::FromStr,
+    io::{self, BufReader, BufWriter},
+    path::PathBuf,
 };
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 fn main() {
     let mut db: Database<String, String> = Database::build().unwrap();
@@ -19,12 +18,19 @@ fn main() {
     // let d = db.delete("a".to_string()).unwrap();
 }
 
-struct Database<K: Serialize + Ord + PartialEq + Eq + Hash + Clone, V: Clone + Serialize> {
+struct Database<
+    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
+    V: Clone + Serialize + for<'de> Deserialize<'de>,
+> {
     memtable: MemTable<K, V>,
 }
 
 // TODO: error
-impl<K: Serialize + Ord + PartialEq + Eq + Hash + Clone, V: Clone + Serialize> Database<K, V> {
+impl<
+    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
+    V: Clone + Serialize + for<'de> Deserialize<'de>,
+> Database<K, V>
+{
     pub fn build() -> Result<Self, String> {
         Ok(Self {
             memtable: MemTable::new(),
@@ -46,11 +52,16 @@ impl<K: Serialize + Ord + PartialEq + Eq + Hash + Clone, V: Clone + Serialize> D
 
 /// Backing storage.
 // TODO: A trait BackingStorage that generalizes operations of lookup, insertion, deletion
-struct MemTable<K: Ord + PartialEq + Eq + Hash + Clone + Serialize, V: Clone> {
+struct MemTable<
+    K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
+    V: Clone,
+> {
     data: HashMap<K, V>,
 }
 
-impl<K: Ord + PartialEq + Eq + Hash + Clone + Serialize, V: Clone> MemTable<K, V> {
+impl<K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>, V: Clone>
+    MemTable<K, V>
+{
     pub fn new() -> Self {
         Self {
             data: HashMap::new(),
@@ -72,8 +83,8 @@ struct SSTable {
 
 impl SSTable {
     pub fn write_sstable<
-        K: Ord + PartialEq + Eq + Hash + Clone + Serialize,
-        V: Clone + Serialize,
+        K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
+        V: Clone + Serialize + for<'de> Deserialize<'de>,
     >(
         &self,
         mem_table: MemTable<K, V>,
@@ -84,5 +95,17 @@ impl SSTable {
         serde_json::to_writer(&mut f, &sorted)?;
 
         Ok(())
+    }
+
+    pub fn get<
+        K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
+        V: Clone + Serialize + for<'de> Deserialize<'de>,
+    >(
+        &self,
+        key: K,
+    ) -> Result<Option<V>, io::Error> {
+        let mut reader = BufReader::new(File::open(&self.path)?);
+        let data: HashMap<K, V> = serde_json::from_reader(&mut reader)?;
+        Ok(data.get(&key).cloned())
     }
 }
