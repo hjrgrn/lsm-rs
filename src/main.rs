@@ -20,7 +20,7 @@ fn main() {
 
 struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Clone + Serialize + for<'de> Deserialize<'de>,
+    V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
 > {
     memtable: MemTable<K, V>,
 }
@@ -28,7 +28,7 @@ struct Database<
 // TODO: error
 impl<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Clone + Serialize + for<'de> Deserialize<'de>,
+    V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
 > Database<K, V>
 {
     pub fn build() -> Result<Self, String> {
@@ -54,13 +54,15 @@ impl<
 // TODO: A trait BackingStorage that generalizes operations of lookup, insertion, deletion
 struct MemTable<
     K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-    V: Clone,
+    V: Tombstone + Clone,
 > {
     data: HashMap<K, V>,
 }
 
-impl<K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>, V: Clone>
-    MemTable<K, V>
+impl<
+    K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
+    V: Tombstone + Clone,
+> MemTable<K, V>
 {
     pub fn new() -> Self {
         Self {
@@ -84,7 +86,7 @@ struct SSTable {
 impl SSTable {
     pub fn write_sstable<
         K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-        V: Clone + Serialize + for<'de> Deserialize<'de>,
+        V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
     >(
         &self,
         mem_table: MemTable<K, V>,
@@ -99,7 +101,7 @@ impl SSTable {
 
     pub fn get<
         K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-        V: Clone + Serialize + for<'de> Deserialize<'de>,
+        V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
     >(
         &self,
         key: K,
