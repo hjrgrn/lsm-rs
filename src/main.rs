@@ -110,3 +110,21 @@ impl SSTable {
         Ok(data.get(&key).cloned())
     }
 }
+
+trait Tombstone {
+    fn is_tombstone(&self) -> bool;
+}
+
+impl Tombstone for &str {
+    fn is_tombstone(&self) -> bool {
+        // TODO: proper tombstone
+        *self == "TODO"
+    }
+}
+
+impl Tombstone for String {
+    fn is_tombstone(&self) -> bool {
+        // TODO: proper tombstone
+        *self == "TODO"
+    }
+}
