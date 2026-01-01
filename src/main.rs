@@ -137,7 +137,17 @@ struct KeyValue<K, V> {
     value: V,
 }
 
-trait Tombstone {
+// TODO: Another possible way to implement this levereging Rust's typesystem would be
+// to define an enum, EntryStatus:
+// ```
+// enum EntryStatus<V> {
+//    Value<V>
+//    Tombstone
+// }
+// ```
+// Store this into MemTable::data instead of just V. When deleting an element from MemTable::data
+// Instead of removing it completely you put a Tombstone.
+pub trait Tombstone {
     fn is_tombstone(&self) -> bool;
 }
 
