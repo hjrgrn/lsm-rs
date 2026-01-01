@@ -113,6 +113,12 @@ impl SSTable {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct KeyValue<K, V> {
+    key: K,
+    value: V,
+}
+
 trait Tombstone {
     fn is_tombstone(&self) -> bool;
 }
