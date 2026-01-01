@@ -105,6 +105,7 @@ impl SSTable {
         key: K,
     ) -> Result<Option<V>, io::Error> {
         let mut reader = BufReader::new(File::open(&self.path)?);
+        // Maybe use serde_json::StreamDeserializer
         let data: HashMap<K, V> = serde_json::from_reader(&mut reader)?;
         Ok(data.get(&key).cloned())
     }
