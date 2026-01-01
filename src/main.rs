@@ -1,5 +1,7 @@
 #![warn(missing_docs)]
 
+//! TODO:
+
 use std::{
     collections::HashMap,
     fs::File,
@@ -107,9 +109,25 @@ impl SSTable {
         key: K,
     ) -> Result<Option<V>, io::Error> {
         let mut reader = BufReader::new(File::open(&self.path)?);
-        // Maybe use serde_json::StreamDeserializer
-        let data: HashMap<K, V> = serde_json::from_reader(&mut reader)?;
-        Ok(data.get(&key).cloned())
+        let data_stream =
+            serde_json::Deserializer::from_reader(&mut reader).into_iter::<KeyValue<K, V>>();
+        let mut previous_element: Option<KeyValue<K, V>> = None;
+        for element in data_stream {
+            let element = element?;
+            if element.key > key {
+                match previous_element {
+                    Some(e) => return Ok(Some(e.value)),
+                    None => {}
+                }
+                break;
+            } else if element.key == key {
+                if element.value.is_tombstone() {
+                    break;
+                }
+                previous_element = Some(element);
+            }
+        }
+        Ok(None)
     }
 }
 
