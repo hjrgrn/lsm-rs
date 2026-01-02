@@ -1,5 +1,7 @@
 #![warn(missing_docs)]
 
+//! TODO:
+
 use std::{
     collections::HashMap,
     fs::File,
@@ -20,7 +22,7 @@ fn main() {
 
 struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Clone + Serialize + for<'de> Deserialize<'de>,
+    V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
 > {
     memtable: MemTable<K, V>,
 }
@@ -28,7 +30,7 @@ struct Database<
 // TODO: error
 impl<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Clone + Serialize + for<'de> Deserialize<'de>,
+    V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
 > Database<K, V>
 {
     pub fn build() -> Result<Self, String> {
@@ -54,13 +56,15 @@ impl<
 // TODO: A trait BackingStorage that generalizes operations of lookup, insertion, deletion
 struct MemTable<
     K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-    V: Clone,
+    V: Tombstone + Clone,
 > {
     data: HashMap<K, V>,
 }
 
-impl<K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>, V: Clone>
-    MemTable<K, V>
+impl<
+    K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
+    V: Tombstone + Clone,
+> MemTable<K, V>
 {
     pub fn new() -> Self {
         Self {
@@ -84,7 +88,7 @@ struct SSTable {
 impl SSTable {
     pub fn write_sstable<
         K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-        V: Clone + Serialize + for<'de> Deserialize<'de>,
+        V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
     >(
         &self,
         mem_table: MemTable<K, V>,
@@ -99,14 +103,64 @@ impl SSTable {
 
     pub fn get<
         K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-        V: Clone + Serialize + for<'de> Deserialize<'de>,
+        V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
     >(
         &self,
         key: K,
     ) -> Result<Option<V>, io::Error> {
         let mut reader = BufReader::new(File::open(&self.path)?);
-        // Maybe use serde_json::StreamDeserializer
-        let data: HashMap<K, V> = serde_json::from_reader(&mut reader)?;
-        Ok(data.get(&key).cloned())
+        let data_stream =
+            serde_json::Deserializer::from_reader(&mut reader).into_iter::<KeyValue<K, V>>();
+        let mut previous_element: Option<KeyValue<K, V>> = None;
+        for element in data_stream {
+            let element = element?;
+            if element.key > key {
+                match previous_element {
+                    Some(e) => return Ok(Some(e.value)),
+                    None => {}
+                }
+                break;
+            } else if element.key == key {
+                if element.value.is_tombstone() {
+                    break;
+                }
+                previous_element = Some(element);
+            }
+        }
+        Ok(None)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct KeyValue<K, V> {
+    key: K,
+    value: V,
+}
+
+// TODO: Another possible way to implement this levereging Rust's typesystem would be
+// to define an enum, EntryStatus:
+// ```
+// enum EntryStatus<V> {
+//    Value<V>
+//    Tombstone
+// }
+// ```
+// Store this into MemTable::data instead of just V. When deleting an element from MemTable::data
+// Instead of removing it completely you put a Tombstone.
+pub trait Tombstone {
+    fn is_tombstone(&self) -> bool;
+}
+
+impl Tombstone for &str {
+    fn is_tombstone(&self) -> bool {
+        // TODO: proper tombstone
+        *self == "TODO"
+    }
+}
+
+impl Tombstone for String {
+    fn is_tombstone(&self) -> bool {
+        // TODO: proper tombstone
+        *self == "TODO"
     }
 }
