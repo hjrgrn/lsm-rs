@@ -2,7 +2,7 @@
 
 //! TODO:
 
-use std::hash::Hash;
+use std::{hash::Hash, path::PathBuf, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
@@ -52,7 +52,18 @@ impl<
         Err("todo".to_string())
     }
 
+    // TODO: error handling
     fn flush_memtable(&mut self) -> Result<(), String> {
+        let sstable_path = format!("data-{}.sstable", self.sstable_counter);
+        let sstable = SSTable::new(PathBuf::from_str(&sstable_path).unwrap());
+        sstable.write_sstable(&self.memtable).unwrap();
+        self.sstable_counter += 1;
+        self.sstables.push(sstable);
+        self.format_memtable();
         Ok(())
+    }
+
+    fn format_memtable(&mut self) {
+
     }
 }
