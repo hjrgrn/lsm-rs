@@ -64,6 +64,7 @@ impl<
     }
 
     fn format_memtable(&mut self) {
-
+        self.memtable = MemTable::new();
+        self.memtable_size = 0;
     }
 }
