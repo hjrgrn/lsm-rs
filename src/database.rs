@@ -2,7 +2,7 @@
 
 //! TODO:
 
-use std::{hash::Hash, path::PathBuf, str::FromStr};
+use std::{hash::Hash, io, path::PathBuf, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
@@ -44,8 +44,22 @@ impl<
         Ok(val)
     }
 
-    pub fn get(&self, key: K) -> Option<V> {
-        self.memtable.get(&key)
+    pub fn get(&self, key: K) -> Result<Option<V>, io::Error> {
+        if let Some(v) = self.memtable.get(&key) {
+            return Ok(Some(v));
+        }
+        // TODO: explain
+        for i in (0..self.sstable_counter).rev() {
+            let tab = &self.sstables[i];
+            // TODO: remove memcopy
+            let res = tab.get(key.clone());
+            if res.is_ok() {
+                return res;
+            } else {
+                return res;
+            }
+        }
+        Ok(None)
     }
 
     pub fn delete(&self, _key: K) -> Result<V, String> {
