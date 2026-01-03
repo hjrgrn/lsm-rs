@@ -14,6 +14,10 @@ pub struct SSTable {
 }
 
 impl SSTable {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+
     pub fn write_sstable<
         K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
         V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
