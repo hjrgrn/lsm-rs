@@ -23,7 +23,7 @@ impl SSTable {
         V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
     >(
         &self,
-        mem_table: MemTable<K, V>,
+        mem_table: &MemTable<K, V>,
     ) -> Result<(), io::Error> {
         let mut f = BufWriter::new(File::create(&self.path)?);
         let mut sorted: Vec<_> = mem_table.data().iter().collect();
