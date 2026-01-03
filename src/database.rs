@@ -35,8 +35,13 @@ impl<
         })
     }
 
-    pub fn put(&mut self, key: K, value: V) -> Option<V> {
-        self.memtable.put(key, value)
+    pub fn put(&mut self, key: K, value: V) -> Result<Option<V>, String> {
+        let val = self.memtable.put(key, value);
+        self.memtable_size += 1;
+        if self.memtable_size > self.max_memtable_size {
+            self.flush_memtable()?;
+        }
+        Ok(val)
     }
 
     pub fn get(&self, key: K) -> Option<V> {
@@ -45,5 +50,9 @@ impl<
 
     pub fn delete(&self, _key: K) -> Result<V, String> {
         Err("todo".to_string())
+    }
+
+    fn flush_memtable(&mut self) -> Result<(), String> {
+        Ok(())
     }
 }
