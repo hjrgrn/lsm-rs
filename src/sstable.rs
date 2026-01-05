@@ -11,6 +11,7 @@ use crate::{memtable::MemTable, tombstone::Tombstone};
 
 pub struct SSTable {
     path: PathBuf,
+    // TODO: store BufReader and BufWriter, instead of opening a new one every time.
 }
 
 impl SSTable {
