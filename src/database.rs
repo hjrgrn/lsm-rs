@@ -3,8 +3,8 @@
 //! TODO:
 
 use std::{hash::Hash, io, path::PathBuf, str::FromStr};
-
 use serde::{Deserialize, Serialize};
+use anyhow::Result as AnyResult;
 
 use crate::{memtable::MemTable, sstable::SSTable, tombstone::Tombstone};
 
@@ -25,7 +25,7 @@ impl<
     V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
 > Database<K, V>
 {
-    pub fn build(max_memtable_size: usize) -> Result<Self, String> {
+    pub fn build(max_memtable_size: usize) -> AnyResult<Self> {
         Ok(Self {
             memtable: MemTable::new(),
             max_memtable_size,
