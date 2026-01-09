@@ -2,11 +2,11 @@
 
 //! TODO:
 
-use std::{hash::Hash, io, path::PathBuf, str::FromStr};
-use serde::{Deserialize, Serialize};
 use anyhow::Result as AnyResult;
+use serde::{Deserialize, Serialize};
+use std::{hash::Hash, io, path::PathBuf, str::FromStr};
 
-use crate::{memtable::MemTable, sstable::SSTable, tombstone::Tombstone};
+use crate::{memtable::MemTable, sstable::SSTable, tombstone::Tombstone, wal::WAL};
 
 pub struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
@@ -17,6 +17,7 @@ pub struct Database<
     memtable_size: usize,
     sstables: Vec<SSTable>,
     sstable_counter: usize,
+    wal: WAL,
 }
 
 // TODO: error
@@ -32,6 +33,7 @@ impl<
             memtable_size: 0,
             sstables: Vec::new(),
             sstable_counter: 0,
+            wal: WAL::build(PathBuf::from_str("./instance/db.wal")?)?,
         })
     }
 
