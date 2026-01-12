@@ -2,7 +2,7 @@
 //! XXX:
 
 use std::{
-    fs::File,
+    fs::{File, remove_file},
     hash::Hash,
     io::{self, BufReader, BufWriter, ErrorKind},
     path::PathBuf,
@@ -36,19 +36,24 @@ impl WAL {
         path: &PathBuf,
     ) -> Result<MemTable<K, V>, io::Error> {
         let mut tab = MemTable::new();
-        let res = File::open(path);
-        if let Err(e) = res {
-            if e.kind() == ErrorKind::NotFound {
-                return Ok(tab);
-            } else {
-                return Err(e);
+        match File::open(path) {
+            Ok(f) => {
+                let mut reader = BufReader::new(&f);
+                let data: Vec<(K, V)> = serde_json::from_reader(&mut reader)?;
+                for (k, v) in data.into_iter() {
+                    let _ = tab.put(k, v);
+                }
+                drop(f);
+                remove_file(path)?;
+                Ok(tab)
+            }
+            Err(e) => {
+                if e.kind() == ErrorKind::NotFound {
+                    Ok(tab)
+                } else {
+                    Err(e)
+                }
             }
         }
-        let mut reader = BufReader::new(File::open(path)?);
-        let data: Vec<(K, V)> = serde_json::from_reader(&mut reader)?;
-        for (k, v) in data.into_iter() {
-            let _ = tab.put(k, v);
-        }
-        Ok(tab)
     }
 }
