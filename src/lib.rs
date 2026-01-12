@@ -6,3 +6,4 @@ pub mod database;
 mod tombstone;
 mod memtable;
 mod sstable;
+mod wal;

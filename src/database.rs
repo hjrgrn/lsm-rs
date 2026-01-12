@@ -2,11 +2,13 @@
 
 //! TODO:
 
+use anyhow::Result as AnyResult;
+use serde::{Deserialize, Serialize};
 use std::{hash::Hash, io, path::PathBuf, str::FromStr};
 
-use serde::{Deserialize, Serialize};
+use crate::{memtable::MemTable, sstable::SSTable, tombstone::Tombstone, wal::WAL};
 
-use crate::{memtable::MemTable, sstable::SSTable, tombstone::Tombstone};
+const WAL_PATH: &str = "./instance/db.wal";
 
 pub struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
@@ -17,6 +19,7 @@ pub struct Database<
     memtable_size: usize,
     sstables: Vec<SSTable>,
     sstable_counter: usize,
+    wal: WAL,
 }
 
 // TODO: error
@@ -25,17 +28,21 @@ impl<
     V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
 > Database<K, V>
 {
-    pub fn build(max_memtable_size: usize) -> Result<Self, String> {
+    pub fn build(max_memtable_size: usize) -> AnyResult<Self> {
+        let wal_path = PathBuf::from_str(WAL_PATH)?;
+        let tab = WAL::replay_wal::<K, V>(&wal_path)?;
         Ok(Self {
-            memtable: MemTable::new(),
+            memtable_size: tab.size(),
+            memtable: tab,
             max_memtable_size,
-            memtable_size: 0,
             sstables: Vec::new(),
             sstable_counter: 0,
+            wal: WAL::build(wal_path)?,
         })
     }
 
-    pub fn put(&mut self, key: K, value: V) -> Result<Option<V>, String> {
+    pub fn put(&mut self, key: K, value: V) -> AnyResult<Option<V>> {
+        self.wal.write(key.clone(), value.clone())?;
         let val = self.memtable.put(key, value);
         self.memtable_size += 1;
         if self.memtable_size > self.max_memtable_size {
@@ -67,10 +74,10 @@ impl<
     }
 
     // TODO: error handling
-    fn flush_memtable(&mut self) -> Result<(), String> {
+    fn flush_memtable(&mut self) -> AnyResult<()> {
         let sstable_path = format!("data-{}.sstable", self.sstable_counter);
-        let sstable = SSTable::new(PathBuf::from_str(&sstable_path).unwrap());
-        sstable.write_sstable(&self.memtable).unwrap();
+        let sstable = SSTable::new(PathBuf::from_str(&sstable_path)?);
+        sstable.write_sstable(&self.memtable)?;
         self.sstable_counter += 1;
         self.sstables.push(sstable);
         self.format_memtable();
