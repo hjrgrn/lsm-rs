@@ -41,7 +41,8 @@ impl<
         })
     }
 
-    pub fn put(&mut self, key: K, value: V) -> Result<Option<V>, String> {
+    pub fn put(&mut self, key: K, value: V) -> AnyResult<Option<V>> {
+        self.wal.write(key.clone(), value.clone())?;
         let val = self.memtable.put(key, value);
         self.memtable_size += 1;
         if self.memtable_size > self.max_memtable_size {
@@ -73,10 +74,10 @@ impl<
     }
 
     // TODO: error handling
-    fn flush_memtable(&mut self) -> Result<(), String> {
+    fn flush_memtable(&mut self) -> AnyResult<()> {
         let sstable_path = format!("data-{}.sstable", self.sstable_counter);
-        let sstable = SSTable::new(PathBuf::from_str(&sstable_path).unwrap());
-        sstable.write_sstable(&self.memtable).unwrap();
+        let sstable = SSTable::new(PathBuf::from_str(&sstable_path)?);
+        sstable.write_sstable(&self.memtable)?;
         self.sstable_counter += 1;
         self.sstables.push(sstable);
         self.format_memtable();
