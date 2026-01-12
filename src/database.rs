@@ -8,6 +8,8 @@ use std::{hash::Hash, io, path::PathBuf, str::FromStr};
 
 use crate::{memtable::MemTable, sstable::SSTable, tombstone::Tombstone, wal::WAL};
 
+const WAL_PATH: &str = "./instance/db.wal";
+
 pub struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
     V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
@@ -27,13 +29,15 @@ impl<
 > Database<K, V>
 {
     pub fn build(max_memtable_size: usize) -> AnyResult<Self> {
+        let wal_path = PathBuf::from_str(WAL_PATH)?;
+        let tab = WAL::replay_wal::<K, V>(&wal_path)?;
         Ok(Self {
-            memtable: MemTable::new(),
+            memtable_size: tab.size(),
+            memtable: tab,
             max_memtable_size,
-            memtable_size: 0,
             sstables: Vec::new(),
             sstable_counter: 0,
-            wal: WAL::build(PathBuf::from_str("./instance/db.wal")?)?,
+            wal: WAL::build(wal_path)?,
         })
     }
 
