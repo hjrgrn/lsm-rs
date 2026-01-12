@@ -39,4 +39,8 @@ impl<
     pub fn data(&self) -> &HashMap<K, V> {
         &self.data
     }
+
+    pub fn size(&self) -> usize {
+        self.data.len()
+    }
 }
