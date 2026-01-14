@@ -3,7 +3,8 @@
 //! TODO:
 
 pub mod database;
-mod tombstone;
+mod manifest;
 mod memtable;
 mod sstable;
+mod tombstone;
 mod wal;
