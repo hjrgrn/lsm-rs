@@ -36,7 +36,10 @@ impl Manifest {
         let tmp_path = path.as_ref().to_path_buf().join(".tmp");
         let f = fs::File::create(&tmp_path)?;
         let writer = BufWriter::new(&f);
-        serde_json::to_writer(writer, &self.sstable_paths)?;
+        if let Err(e) = serde_json::to_writer(writer, &self.sstable_paths) {
+            fs::remove_file(tmp_path)?;
+            return Err(e.into());
+        }
         // TODO: explain atomic rename
         fs::rename(&tmp_path, path)?;
 
