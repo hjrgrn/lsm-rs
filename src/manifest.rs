@@ -32,6 +32,7 @@ impl Manifest {
     }
 
     pub(crate) fn write_manifest(&self, path: impl AsRef<Path>) -> AnyResult<()> {
+        // TODO: use crate tempfile
         let tmp_path = path.as_ref().to_path_buf().join(".tmp");
         let f = fs::File::create(&tmp_path)?;
         let writer = BufWriter::new(&f);
