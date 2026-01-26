@@ -4,11 +4,16 @@
 
 use anyhow::Result as AnyResult;
 use serde::{Deserialize, Serialize};
-use std::{hash::Hash, io, path::PathBuf, str::FromStr};
+use std::{
+    hash::Hash,
+    io,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
-use crate::{memtable::MemTable, sstable::SSTable, tombstone::Tombstone, wal::WAL};
-
-const WAL_PATH: &str = "./instance/db.wal";
+use crate::{
+    manifest::Manifest, memtable::MemTable, sstable::SSTable, tombstone::Tombstone, wal::WAL,
+};
 
 pub struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
@@ -20,6 +25,7 @@ pub struct Database<
     sstables: Vec<SSTable>,
     sstable_counter: usize,
     wal: WAL,
+    manifest: Manifest,
 }
 
 // TODO: error
@@ -28,8 +34,11 @@ impl<
     V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
 > Database<K, V>
 {
-    pub fn build(max_memtable_size: usize) -> AnyResult<Self> {
-        let wal_path = PathBuf::from_str(WAL_PATH)?;
+    pub fn build(
+        max_memtable_size: usize,
+        wal_path: impl AsRef<Path>,
+        manifest_path: impl AsRef<Path>,
+    ) -> AnyResult<Self> {
         let tab = WAL::replay_wal::<K, V>(&wal_path)?;
         Ok(Self {
             memtable_size: tab.size(),
@@ -37,7 +46,8 @@ impl<
             max_memtable_size,
             sstables: Vec::new(),
             sstable_counter: 0,
-            wal: WAL::build(wal_path)?,
+            wal: WAL::build(&wal_path)?,
+            manifest: Manifest::read_manifest(manifest_path)?,
         })
     }
 
@@ -80,6 +90,8 @@ impl<
         sstable.write_sstable(&self.memtable)?;
         self.sstable_counter += 1;
         self.sstables.push(sstable);
+        self.manifest.add_sstable(sstable_path);
+        self.manifest.write_manifest()?;
         self.format_memtable();
         Ok(())
     }
