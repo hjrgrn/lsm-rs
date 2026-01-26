@@ -91,6 +91,7 @@ impl<
         self.sstable_counter += 1;
         self.sstables.push(sstable);
         self.manifest.add_sstable(sstable_path);
+        self.manifest.write_manifest()?;
         self.format_memtable();
         Ok(())
     }
