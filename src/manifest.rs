@@ -5,10 +5,9 @@ use std::{
     fs,
     io::{BufReader, BufWriter, ErrorKind},
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
-const MANIFEST_PATH: &str = "./instance/MANIFEST";
+pub const MANIFEST_PATH: &str = "./instance/MANIFEST";
 
 pub(crate) struct Manifest {
     path: PathBuf,

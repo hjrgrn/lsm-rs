@@ -11,7 +11,9 @@ use std::{
     str::FromStr,
 };
 
-use crate::{memtable::MemTable, sstable::SSTable, tombstone::Tombstone, wal::WAL};
+use crate::{
+    manifest::Manifest, memtable::MemTable, sstable::SSTable, tombstone::Tombstone, wal::WAL,
+};
 
 pub const WAL_PATH: &str = "./instance/db.wal";
 
@@ -25,6 +27,7 @@ pub struct Database<
     sstables: Vec<SSTable>,
     sstable_counter: usize,
     wal: WAL,
+    manifest: Manifest,
 }
 
 // TODO: error
@@ -33,7 +36,11 @@ impl<
     V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
 > Database<K, V>
 {
-    pub fn build(max_memtable_size: usize, wal_path: impl AsRef<Path>) -> AnyResult<Self> {
+    pub fn build(
+        max_memtable_size: usize,
+        wal_path: impl AsRef<Path>,
+        manifest_path: impl AsRef<Path>,
+    ) -> AnyResult<Self> {
         let tab = WAL::replay_wal::<K, V>(&wal_path)?;
         Ok(Self {
             memtable_size: tab.size(),
@@ -42,6 +49,7 @@ impl<
             sstables: Vec::new(),
             sstable_counter: 0,
             wal: WAL::build(&wal_path)?,
+            manifest: Manifest::read_manifest(manifest_path)?,
         })
     }
 

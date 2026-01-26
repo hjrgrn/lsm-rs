@@ -17,6 +17,8 @@ pub struct WAL {
     writer: BufWriter<File>,
 }
 
+pub const WAL_PATH: &str = "./instance/db.wal";
+
 impl WAL {
     pub fn build(path: impl AsRef<Path>) -> Result<Self, io::Error> {
         let writer = BufWriter::new(File::options().append(true).create(false).open(&path)?);
