@@ -15,8 +15,6 @@ use crate::{
     manifest::Manifest, memtable::MemTable, sstable::SSTable, tombstone::Tombstone, wal::WAL,
 };
 
-pub const WAL_PATH: &str = "./instance/db.wal";
-
 pub struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
     V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
@@ -92,6 +90,7 @@ impl<
         sstable.write_sstable(&self.memtable)?;
         self.sstable_counter += 1;
         self.sstables.push(sstable);
+        self.manifest.add_sstable(sstable_path);
         self.format_memtable();
         Ok(())
     }
