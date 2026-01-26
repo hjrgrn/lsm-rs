@@ -5,7 +5,7 @@ use std::{
     fs::{File, remove_file},
     hash::Hash,
     io::{self, BufReader, BufWriter, ErrorKind},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use serde::{Deserialize, Serialize};
@@ -18,9 +18,12 @@ pub struct WAL {
 }
 
 impl WAL {
-    pub fn build(path: PathBuf) -> Result<Self, io::Error> {
+    pub fn build(path: impl AsRef<Path>) -> Result<Self, io::Error> {
         let writer = BufWriter::new(File::options().append(true).create(false).open(&path)?);
-        Ok(Self { path, writer })
+        Ok(Self {
+            path: path.as_ref().to_path_buf(),
+            writer,
+        })
     }
 
     // TODO: maybe other trait bounds
@@ -33,10 +36,10 @@ impl WAL {
         K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
         V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
     >(
-        path: &PathBuf,
+        path: impl AsRef<Path>,
     ) -> Result<MemTable<K, V>, io::Error> {
         let mut tab = MemTable::new();
-        match File::open(path) {
+        match File::open(&path) {
             Ok(f) => {
                 let mut reader = BufReader::new(&f);
                 let data: Vec<(K, V)> = serde_json::from_reader(&mut reader)?;
@@ -44,7 +47,7 @@ impl WAL {
                     let _ = tab.put(k, v);
                 }
                 drop(f);
-                remove_file(path)?;
+                remove_file(&path)?;
                 Ok(tab)
             }
             Err(e) => {

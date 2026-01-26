@@ -1,7 +1,7 @@
-use lsm_tree_rs::database::Database;
+use lsm_tree_rs::database::{Database, WAL_PATH};
 
 fn main() {
-    let mut db: Database<String, String> = Database::build(10).unwrap();
+    let mut db: Database<String, String> = Database::build(10, WAL_PATH).unwrap();
     let _ = db.put("a".to_string(), "apple".to_string());
     let g = db.get("a".to_string()).unwrap();
     println!("{}", g.unwrap());

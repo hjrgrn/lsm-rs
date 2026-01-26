@@ -4,11 +4,16 @@
 
 use anyhow::Result as AnyResult;
 use serde::{Deserialize, Serialize};
-use std::{hash::Hash, io, path::PathBuf, str::FromStr};
+use std::{
+    hash::Hash,
+    io,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use crate::{memtable::MemTable, sstable::SSTable, tombstone::Tombstone, wal::WAL};
 
-const WAL_PATH: &str = "./instance/db.wal";
+pub const WAL_PATH: &str = "./instance/db.wal";
 
 pub struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
@@ -28,8 +33,7 @@ impl<
     V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
 > Database<K, V>
 {
-    pub fn build(max_memtable_size: usize) -> AnyResult<Self> {
-        let wal_path = PathBuf::from_str(WAL_PATH)?;
+    pub fn build(max_memtable_size: usize, wal_path: impl AsRef<Path>) -> AnyResult<Self> {
         let tab = WAL::replay_wal::<K, V>(&wal_path)?;
         Ok(Self {
             memtable_size: tab.size(),
@@ -37,7 +41,7 @@ impl<
             max_memtable_size,
             sstables: Vec::new(),
             sstable_counter: 0,
-            wal: WAL::build(wal_path)?,
+            wal: WAL::build(&wal_path)?,
         })
     }
 
