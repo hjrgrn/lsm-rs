@@ -82,8 +82,8 @@ impl<
         Ok(None)
     }
 
-    pub fn delete(&self, _key: K) -> Result<V, String> {
-        Err("todo".to_string())
+    pub fn delete(&mut self, key: K) -> AnyResult<Option<V>> {
+        self.put(key, V::tombstone())
     }
 
     // TODO: error handling
