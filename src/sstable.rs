@@ -46,6 +46,7 @@ impl SSTable {
         let mut reader = BufReader::new(File::open(&self.path)?);
         let data_stream =
             serde_json::Deserializer::from_reader(&mut reader).into_iter::<KeyValue<K, V>>();
+        // TODO: necessary?
         let mut previous_element: Option<KeyValue<K, V>> = None;
         for element in data_stream {
             let element = element?;

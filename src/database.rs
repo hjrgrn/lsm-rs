@@ -63,6 +63,9 @@ impl<
 
     pub fn get(&self, key: K) -> Result<Option<V>, io::Error> {
         if let Some(v) = self.memtable.get(&key) {
+            if v.is_tombstone() {
+                return Ok(None);
+            }
             return Ok(Some(v));
         }
         // TODO: explain
@@ -79,8 +82,8 @@ impl<
         Ok(None)
     }
 
-    pub fn delete(&self, _key: K) -> Result<V, String> {
-        Err("todo".to_string())
+    pub fn delete(&mut self, key: K) -> AnyResult<Option<V>> {
+        self.put(key, V::tombstone())
     }
 
     // TODO: error handling
