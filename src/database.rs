@@ -63,6 +63,9 @@ impl<
 
     pub fn get(&self, key: K) -> Result<Option<V>, io::Error> {
         if let Some(v) = self.memtable.get(&key) {
+            if v.is_tombstone() {
+                return Ok(None);
+            }
             return Ok(Some(v));
         }
         // TODO: explain
