@@ -11,13 +11,11 @@ use std::{
     str::FromStr,
 };
 
-use crate::{
-    manifest::Manifest, memtable::MemTable, sstable::SSTable, tombstone::Tombstone, wal::WAL,
-};
+use crate::{manifest::Manifest, memtable::MemTable, sstable::SSTable, utils::Value, wal::WAL};
 
 pub struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
+    V: Clone + Serialize + for<'de> Deserialize<'de>,
 > {
     memtable: MemTable<K, V>,
     max_memtable_size: usize,
@@ -31,7 +29,7 @@ pub struct Database<
 // TODO: error
 impl<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
+    V: Clone + Serialize + for<'de> Deserialize<'de>,
 > Database<K, V>
 {
     pub fn build(
@@ -52,27 +50,18 @@ impl<
     }
 
     pub fn put(&mut self, key: K, value: V) -> AnyResult<Option<V>> {
-        self.wal.write(key.clone(), value.clone())?;
-        let val = self.memtable.put(key, value);
-        self.memtable_size += 1;
-        if self.memtable_size > self.max_memtable_size {
-            self.flush_memtable()?;
-        }
-        Ok(val)
+        self.add_element(key, Some(value))
     }
 
     pub fn get(&self, key: K) -> Result<Option<V>, io::Error> {
-        if let Some(v) = self.memtable.get(&key) {
-            if v.is_tombstone() {
-                return Ok(None);
-            }
+        // TODO: remove memcopy
+        if let Some(v) = self.memtable.get(key.clone()) {
             return Ok(Some(v));
         }
         // TODO: explain
         for i in (0..self.sstable_counter).rev() {
             let tab = &self.sstables[i];
-            // TODO: remove memcopy
-            let res = tab.get(key.clone());
+            let res = tab.get(key);
             if res.is_ok() {
                 return res;
             } else {
@@ -83,7 +72,21 @@ impl<
     }
 
     pub fn delete(&mut self, key: K) -> AnyResult<Option<V>> {
-        self.put(key, V::tombstone())
+        self.add_element(key, None)
+    }
+
+    fn add_element(&mut self, key: K, value: Option<V>) -> AnyResult<Option<V>> {
+        // TODO: explain why clone is necessary
+        self.wal.write::<K, V>(key.clone(), value.clone())?;
+        let val = match value {
+            Some(e) => self.memtable.put(key, e),
+            None => self.memtable.remove(key),
+        };
+        self.memtable_size += 1;
+        if self.memtable_size > self.max_memtable_size {
+            self.flush_memtable()?;
+        }
+        Ok(val)
     }
 
     // TODO: error handling

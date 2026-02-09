@@ -10,7 +10,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{memtable::MemTable, tombstone::Tombstone};
+use crate::memtable::MemTable;
 
 pub struct WAL {
     path: PathBuf,
@@ -29,14 +29,18 @@ impl WAL {
     }
 
     // TODO: maybe other trait bounds
-    pub fn write<K: Serialize, V: Serialize>(&mut self, key: K, value: V) -> Result<(), io::Error> {
+    pub fn write<K: Serialize, V: Serialize>(
+        &mut self,
+        key: K,
+        value: Option<V>,
+    ) -> Result<(), io::Error> {
         serde_json::to_writer(&mut self.writer, &(key, value))?;
         Ok(())
     }
 
     pub fn replay_wal<
         K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-        V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
+        V: Clone + Serialize + for<'de> Deserialize<'de>,
     >(
         path: impl AsRef<Path>,
     ) -> Result<MemTable<K, V>, io::Error> {

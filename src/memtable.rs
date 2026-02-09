@@ -6,21 +6,18 @@ use std::{collections::HashMap, hash::Hash};
 
 use serde::{Deserialize, Serialize};
 
-use crate::tombstone::Tombstone;
-
 /// Backing storage.
 // TODO: A trait BackingStorage that generalizes operations of lookup, insertion, deletion
+// TODO: explain use of Option to signify TOMBSTONE
 pub struct MemTable<
     K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-    V: Tombstone + Clone,
+    V: Clone,
 > {
-    data: HashMap<K, V>,
+    data: HashMap<K, Option<V>>,
 }
 
-impl<
-    K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-    V: Tombstone + Clone,
-> MemTable<K, V>
+impl<K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>, V: Clone>
+    MemTable<K, V>
 {
     pub fn new() -> Self {
         Self {
@@ -28,15 +25,20 @@ impl<
         }
     }
     pub fn put(&mut self, key: K, value: V) -> Option<V> {
-        self.data.insert(key, value)
+        self.data.insert(key, Some(value))?
     }
 
-    pub fn get(&self, key: &K) -> Option<V> {
-        let val = self.data.get(key)?;
-        Some(val.clone())
+    pub fn get(&self, key: K) -> Option<V> {
+        let val = self.data.get(&key)?;
+        val.clone()
     }
 
-    pub fn data(&self) -> &HashMap<K, V> {
+    pub fn remove(&mut self, key: K) -> Option<V> {
+        let val = self.data.insert(key, None)?;
+        val
+    }
+
+    pub fn data(&self) -> &HashMap<K, Option<V>> {
         &self.data
     }
 

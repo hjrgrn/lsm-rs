@@ -9,7 +9,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{memtable::MemTable, tombstone::Tombstone};
+use crate::{memtable::MemTable, utils::Value};
 
 pub struct SSTable {
     path: PathBuf,
@@ -23,7 +23,7 @@ impl SSTable {
 
     pub fn write_sstable<
         K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-        V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
+        V: Clone + Serialize + for<'de> Deserialize<'de>,
     >(
         &self,
         mem_table: &MemTable<K, V>,
@@ -38,29 +38,21 @@ impl SSTable {
 
     pub fn get<
         K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-        V: Tombstone + Clone + Serialize + for<'de> Deserialize<'de>,
+        V: Clone + Serialize + for<'de> Deserialize<'de>,
     >(
         &self,
         key: K,
     ) -> Result<Option<V>, io::Error> {
+        // TODO: reader may become a field
         let mut reader = BufReader::new(File::open(&self.path)?);
         let data_stream =
             serde_json::Deserializer::from_reader(&mut reader).into_iter::<KeyValue<K, V>>();
-        // TODO: necessary?
-        let mut previous_element: Option<KeyValue<K, V>> = None;
         for element in data_stream {
             let element = element?;
             if element.key > key {
-                match previous_element {
-                    Some(e) => return Ok(Some(e.value)),
-                    None => {}
-                }
                 break;
             } else if element.key == key {
-                if element.value.is_tombstone() {
-                    break;
-                }
-                previous_element = Some(element);
+                return Ok(element.value);
             }
         }
         Ok(None)
@@ -70,5 +62,5 @@ impl SSTable {
 #[derive(Serialize, Deserialize, Debug)]
 struct KeyValue<K, V> {
     key: K,
-    value: V,
+    value: Option<V>,
 }
