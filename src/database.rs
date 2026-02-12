@@ -11,7 +11,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::{manifest::Manifest, memtable::MemTable, sstable::SSTable, utils::Value, wal::WAL};
+use crate::{manifest::Manifest, memtable::MemTable, sstable::SSTable, wal::WAL};
 
 pub struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,

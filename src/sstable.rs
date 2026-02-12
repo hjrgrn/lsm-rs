@@ -9,7 +9,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{memtable::MemTable, utils::Value};
+use crate::memtable::MemTable;
 
 pub struct SSTable {
     path: PathBuf,
