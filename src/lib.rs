@@ -2,6 +2,7 @@
 
 //! TODO:
 
+pub mod compaction;
 pub mod database;
 pub mod manifest;
 pub mod memtable;
