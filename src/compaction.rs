@@ -57,21 +57,25 @@ impl<
     }
 
     // TODO: needs refactoring
-    // TODO: return Ok(false) if MiniHeap::data is empty, not the best design, have a custom error
-    // enum, one variant for Empty, another for io::Error
-    pub fn write_to_sstable(&mut self) -> Result<bool, io::Error> {
+    // TODO: return the index of the table that has the value that has been written, or None if the
+    // mini_mem_tab is empty.
+    // Maybe have a custom error enum, one variant for Empty, another for io::Error
+    pub fn write_to_sstable(&mut self) -> Result<Option<usize>, io::Error> {
         let pair = self
             .data
             .iter()
-            .min_by(|a, b| (a.0, &a.1.0).cmp(&(b.0, &b.1.0)));
+            // TODO: explain: - because we want the one with the biggest index, despite the fact
+            // that we are using `.min_by()`
+            .min_by(|a, b| (a.0, -(a.1.0 as i8)).cmp(&(b.0, -(b.1.0 as i8))));
         let pair = if let Some(p) = pair {
             p
         } else {
-            return Ok(false);
+            return Ok(None);
         };
         // TODO: handle the None value
         let key = pair.0.clone();
         let value = pair.1.1.clone();
+        let index = pair.1.0.clone();
         if value.is_some() {
             let pair = KeyValue {
                 key: pair.1,
@@ -81,7 +85,7 @@ impl<
         }
         self.data.remove(&key);
 
-        Ok(true)
+        Ok(Some(index))
     }
 
     pub fn save_file(&self) {
