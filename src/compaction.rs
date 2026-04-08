@@ -88,7 +88,7 @@ impl<
         Ok(Some(index))
     }
 
-    pub fn save_file(&self) {
-        rename(&self.tmp_path, &self.path);
+    pub fn save_file(&self) -> io::Result<()> {
+        rename(&self.tmp_path, &self.path)
     }
 }
