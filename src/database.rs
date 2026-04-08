@@ -29,7 +29,7 @@ pub struct Database<
     sstable_counter: usize,
     wal: WAL,
     manifest: Manifest,
-    compaction_threshold: u8,
+    compaction_threshold: usize,
 }
 
 // TODO: error
@@ -42,7 +42,7 @@ impl<
         max_memtable_size: usize,
         wal_path: impl AsRef<Path>,
         manifest_path: impl AsRef<Path>,
-        compaction_threshold: u8,
+        compaction_threshold: usize,
     ) -> AnyResult<Self> {
         let tab = WAL::replay_wal::<K, V>(&wal_path)?;
         Ok(Self {
@@ -151,6 +151,10 @@ impl<
         self.manifest.add_sstable(sstable_path);
         self.manifest.write_manifest()?;
         self.format_memtable();
+
+        if self.sstable_counter > self.compaction_threshold {
+            self.compact_sstables()?;
+        }
         Ok(())
     }
 
