@@ -5,13 +5,20 @@
 use anyhow::Result as AnyResult;
 use serde::{Deserialize, Serialize};
 use std::{
+    fs::File,
     hash::Hash,
-    io,
+    io::{self, BufReader},
     path::{Path, PathBuf},
     str::FromStr,
 };
 
-use crate::{manifest::Manifest, memtable::MemTable, sstable::SSTable, utils::Value, wal::WAL};
+use crate::{
+    compaction::MiniMemTab,
+    manifest::Manifest,
+    memtable::MemTable,
+    sstable::{KeyValue, SSTable},
+    wal::WAL,
+};
 
 pub struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
@@ -73,6 +80,37 @@ impl<
 
     pub fn delete(&mut self, key: K) -> AnyResult<Option<V>> {
         self.add_element(key, None)
+    }
+
+    // TODO: refactor this
+    pub fn compact_sstables(&mut self) -> Result<(), io::Error> {
+        let new_sstable_path = format!("./instance/data-0.sstable");
+        let mut mini_mem_tab: MiniMemTab<K, V> = MiniMemTab::build(&new_sstable_path)?;
+        let mut tables = Vec::with_capacity(self.sstable_counter);
+        let mut index = 0;
+        for tab in self.sstables.iter() {
+            let reader = BufReader::new(File::open(&tab.path)?);
+            let mut table =
+                serde_json::Deserializer::from_reader(reader).into_iter::<KeyValue<K, V>>();
+
+            // Populate mini_mem_tab
+            if mini_mem_tab.insert(index, &mut table)? {
+                tables.push(table);
+                index += 1;
+            }
+        }
+        loop {
+            let opt = mini_mem_tab.write_to_sstable()?;
+            let index = if let Some(i) = opt {
+                i
+            } else {
+                break;
+            };
+
+            let tab = &mut tables[index];
+            let _ = mini_mem_tab.insert(index, tab)?;
+        }
+        mini_mem_tab.save_file()
     }
 
     fn add_element(&mut self, key: K, value: Option<V>) -> AnyResult<Option<V>> {

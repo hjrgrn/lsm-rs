@@ -9,11 +9,12 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{memtable::MemTable, utils::Value};
+use crate::memtable::MemTable;
 
 pub struct SSTable {
-    path: PathBuf,
-    // TODO: store BufReader and BufWriter, instead of opening a new one every time.
+    // TODO: we may want to have a method that gives back the data_stream, instead of making path
+    // public.
+    pub path: PathBuf,
 }
 
 impl SSTable {
@@ -43,7 +44,7 @@ impl SSTable {
         &self,
         key: K,
     ) -> Result<Option<V>, io::Error> {
-        // TODO: reader may become a field
+        // TODO: maybe we will have a public method that returns the stream.
         let mut reader = BufReader::new(File::open(&self.path)?);
         let data_stream =
             serde_json::Deserializer::from_reader(&mut reader).into_iter::<KeyValue<K, V>>();
@@ -60,7 +61,7 @@ impl SSTable {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct KeyValue<K, V> {
-    key: K,
-    value: Option<V>,
+pub struct KeyValue<K, V> {
+    pub key: K,
+    pub value: Option<V>,
 }
