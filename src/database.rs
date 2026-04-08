@@ -1,5 +1,3 @@
-#![warn(missing_docs)]
-
 //! TODO:
 
 use anyhow::Result as AnyResult;
@@ -31,6 +29,7 @@ pub struct Database<
     sstable_counter: usize,
     wal: WAL,
     manifest: Manifest,
+    compaction_threshold: u8,
 }
 
 // TODO: error
@@ -43,6 +42,7 @@ impl<
         max_memtable_size: usize,
         wal_path: impl AsRef<Path>,
         manifest_path: impl AsRef<Path>,
+        compaction_threshold: u8,
     ) -> AnyResult<Self> {
         let tab = WAL::replay_wal::<K, V>(&wal_path)?;
         Ok(Self {
@@ -53,6 +53,7 @@ impl<
             sstable_counter: 0,
             wal: WAL::build(&wal_path)?,
             manifest: Manifest::read_manifest(manifest_path)?,
+            compaction_threshold,
         })
     }
 
@@ -110,7 +111,7 @@ impl<
             let tab = &mut tables[index];
             let _ = mini_mem_tab.insert(index, tab)?;
         }
-        mini_mem_tab.save_file()
+        mini_mem_tab.atomic_rename()
     }
 
     fn add_element(&mut self, key: K, value: Option<V>) -> AnyResult<Option<V>> {

@@ -1,5 +1,3 @@
-#![warn(missing_docs)]
-
 //! TODO:
 
 pub mod compaction;

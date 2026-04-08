@@ -1,5 +1,3 @@
-#![warn(missing_docs)]
-
 //! TODO:
 
 use std::{collections::HashMap, hash::Hash};

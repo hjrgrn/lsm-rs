@@ -88,7 +88,7 @@ impl<
         Ok(Some(index))
     }
 
-    pub fn save_file(&self) -> io::Result<()> {
+    pub fn atomic_rename(&self) -> io::Result<()> {
         rename(&self.tmp_path, &self.path)
     }
 }
