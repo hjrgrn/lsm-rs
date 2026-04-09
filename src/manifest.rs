@@ -57,4 +57,10 @@ impl Manifest {
     pub(crate) fn add_sstable(&mut self, path: impl AsRef<Path>) {
         self.sstable_paths.push(path.as_ref().to_path_buf());
     }
+
+    pub(crate) fn refresh_manifest(&mut self, path: impl AsRef<Path>) -> AnyResult<()> {
+        self.sstable_paths = Vec::new();
+        self.add_sstable(path);
+        self.write_manifest()
+    }
 }

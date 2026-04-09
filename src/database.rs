@@ -1,11 +1,9 @@
-#![warn(missing_docs)]
-
 //! TODO:
 
 use anyhow::Result as AnyResult;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::File,
+    fs::{self, File},
     hash::Hash,
     io::{self, BufReader},
     path::{Path, PathBuf},
@@ -31,6 +29,7 @@ pub struct Database<
     sstable_counter: usize,
     wal: WAL,
     manifest: Manifest,
+    compaction_threshold: usize,
 }
 
 // TODO: error
@@ -43,6 +42,7 @@ impl<
         max_memtable_size: usize,
         wal_path: impl AsRef<Path>,
         manifest_path: impl AsRef<Path>,
+        compaction_threshold: usize,
     ) -> AnyResult<Self> {
         let tab = WAL::replay_wal::<K, V>(&wal_path)?;
         Ok(Self {
@@ -53,6 +53,7 @@ impl<
             sstable_counter: 0,
             wal: WAL::build(&wal_path)?,
             manifest: Manifest::read_manifest(manifest_path)?,
+            compaction_threshold,
         })
     }
 
@@ -83,7 +84,8 @@ impl<
     }
 
     // TODO: refactor this
-    pub fn compact_sstables(&mut self) -> Result<(), io::Error> {
+    pub fn compact_sstables(&mut self) -> AnyResult<()> {
+        // TODO: make it a pathbuf
         let new_sstable_path = format!("./instance/data-0.sstable");
         let mut mini_mem_tab: MiniMemTab<K, V> = MiniMemTab::build(&new_sstable_path)?;
         let mut tables = Vec::with_capacity(self.sstable_counter);
@@ -110,7 +112,19 @@ impl<
             let tab = &mut tables[index];
             let _ = mini_mem_tab.insert(index, tab)?;
         }
-        mini_mem_tab.save_file()
+
+        // At this point we have a temporary file for the new sstable
+
+        self.manifest.refresh_manifest(&new_sstable_path)?;
+        for tab in &self.sstables {
+            fs::remove_file(&tab.path)?;
+        }
+        self.sstables = Vec::new();
+        let new_sstable_path = PathBuf::from_str(&new_sstable_path).unwrap();
+        let new_sstable = SSTable::new(new_sstable_path);
+        self.sstables.push(new_sstable);
+        self.sstable_counter = 1;
+        mini_mem_tab.atomic_rename().map_err(|e| anyhow::anyhow!(e))
     }
 
     fn add_element(&mut self, key: K, value: Option<V>) -> AnyResult<Option<V>> {
@@ -137,6 +151,10 @@ impl<
         self.manifest.add_sstable(sstable_path);
         self.manifest.write_manifest()?;
         self.format_memtable();
+
+        if self.sstable_counter > self.compaction_threshold {
+            self.compact_sstables()?;
+        }
         Ok(())
     }
 
