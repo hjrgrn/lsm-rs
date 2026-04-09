@@ -7,8 +7,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub const MANIFEST_PATH: &str = "./instance/MANIFEST";
-
 pub(crate) struct Manifest {
     path: PathBuf,
     sstable_paths: Vec<PathBuf>,
