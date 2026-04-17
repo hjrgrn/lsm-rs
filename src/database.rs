@@ -22,6 +22,7 @@ pub struct Database<
     K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
     V: Clone + Serialize + for<'de> Deserialize<'de>,
 > {
+    working_dir: PathBuf,
     memtable: MemTable<K, V>,
     max_memtable_size: usize,
     memtable_size: usize,
@@ -39,6 +40,7 @@ impl<
 > Database<K, V>
 {
     pub fn build(
+        working_dir: impl AsRef<Path>,
         max_memtable_size: usize,
         wal_path: impl AsRef<Path>,
         manifest_path: impl AsRef<Path>,
@@ -46,6 +48,7 @@ impl<
     ) -> AnyResult<Self> {
         let tab = WAL::replay_wal::<K, V>(&wal_path)?;
         Ok(Self {
+            working_dir: working_dir.as_ref().to_path_buf(),
             memtable_size: tab.size(),
             memtable: tab,
             max_memtable_size,
@@ -135,7 +138,7 @@ impl<
             None => self.memtable.remove(key),
         };
         self.memtable_size += 1;
-        if self.memtable_size > self.max_memtable_size {
+        if self.memtable_size >= self.max_memtable_size {
             self.flush_memtable()?;
         }
         Ok(val)
@@ -143,8 +146,10 @@ impl<
 
     // TODO: error handling
     fn flush_memtable(&mut self) -> AnyResult<()> {
-        let sstable_path = format!("data-{}.sstable", self.sstable_counter);
-        let sstable = SSTable::new(PathBuf::from_str(&sstable_path)?);
+        let sstable_path = self
+            .working_dir
+            .join(format!("data-{}.sstable", self.sstable_counter));
+        let sstable = SSTable::new(sstable_path.clone());
         sstable.write_sstable(&self.memtable)?;
         self.sstable_counter += 1;
         self.sstables.push(sstable);

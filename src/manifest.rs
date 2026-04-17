@@ -39,7 +39,13 @@ impl Manifest {
 
     pub(crate) fn write_manifest(&self) -> AnyResult<()> {
         // TODO: use crate tempfile
-        let tmp_path = self.path.join(".tmp");
+        let mut tmp_path = self.path.clone();
+        let success = tmp_path.add_extension("tmp");
+        if !success {
+            return Err(anyhow::anyhow!(
+                "Problems with tmp_path in Manifest::write_manifest."
+            ));
+        }
         let f = fs::File::create(&tmp_path)?;
         let writer = BufWriter::new(&f);
         if let Err(e) = serde_json::to_writer(writer, &self.sstable_paths) {
