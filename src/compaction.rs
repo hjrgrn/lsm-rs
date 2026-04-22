@@ -2,6 +2,7 @@
 
 use std::{
     collections::HashMap,
+    fmt::Debug,
     fs::{File, rename},
     hash::Hash,
     io::{self, BufReader, BufWriter},
@@ -13,8 +14,8 @@ use serde_json::{StreamDeserializer, de::IoRead};
 use crate::sstable::KeyValue;
 
 pub struct MiniMemTab<
-    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Clone + Serialize + for<'de> Deserialize<'de>,
+    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone + Debug,
+    V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
 > {
     data: HashMap<K, (usize, Option<V>)>,
     path: String,
@@ -23,8 +24,8 @@ pub struct MiniMemTab<
 }
 
 impl<
-    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Clone + Serialize + for<'de> Deserialize<'de>,
+    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone + Debug,
+    V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
 > MiniMemTab<K, V>
 {
     // TODO: PathBuf instead of str

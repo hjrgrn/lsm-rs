@@ -1,6 +1,6 @@
 //! TODO:
 
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use serde::{Deserialize, Serialize};
 
@@ -8,14 +8,16 @@ use serde::{Deserialize, Serialize};
 // TODO: A trait BackingStorage that generalizes operations of lookup, insertion, deletion
 // TODO: explain use of Option to signify TOMBSTONE
 pub struct MemTable<
-    K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-    V: Clone,
+    K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de> + Debug,
+    V: Clone + Debug,
 > {
     data: HashMap<K, Option<V>>,
 }
 
-impl<K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>, V: Clone>
-    MemTable<K, V>
+impl<
+    K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de> + Debug,
+    V: Clone + Debug,
+> MemTable<K, V>
 {
     pub fn new() -> Self {
         Self {

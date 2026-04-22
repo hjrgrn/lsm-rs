@@ -3,6 +3,7 @@
 use anyhow::Result as AnyResult;
 use serde::{Deserialize, Serialize};
 use std::{
+    fmt::Debug,
     fs::{self, File},
     hash::Hash,
     io::{self, BufReader},
@@ -19,8 +20,8 @@ use crate::{
 };
 
 pub struct Database<
-    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Clone + Serialize + for<'de> Deserialize<'de>,
+    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone + Debug,
+    V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
 > {
     working_dir: PathBuf,
     memtable: MemTable<K, V>,
@@ -35,8 +36,8 @@ pub struct Database<
 
 // TODO: error
 impl<
-    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Clone + Serialize + for<'de> Deserialize<'de>,
+    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone + Debug,
+    V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
 > Database<K, V>
 {
     pub fn build(

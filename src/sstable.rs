@@ -1,6 +1,7 @@
 //! XXX:
 
 use std::{
+    fmt::Debug,
     fs::File,
     hash::Hash,
     io::{self, BufReader, BufWriter},
@@ -23,8 +24,8 @@ impl SSTable {
     }
 
     pub fn write_sstable<
-        K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-        V: Clone + Serialize + for<'de> Deserialize<'de>,
+        K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de> + Debug,
+        V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
     >(
         &self,
         mem_table: &MemTable<K, V>,
@@ -38,8 +39,8 @@ impl SSTable {
     }
 
     pub fn get<
-        K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-        V: Clone + Serialize + for<'de> Deserialize<'de>,
+        K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de> + Debug,
+        V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
     >(
         &self,
         key: K,

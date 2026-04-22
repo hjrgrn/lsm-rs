@@ -2,6 +2,7 @@
 //! XXX:
 
 use std::{
+    fmt::Debug,
     fs::{File, remove_file},
     hash::Hash,
     io::{self, BufReader, BufWriter, ErrorKind},
@@ -37,8 +38,8 @@ impl WAL {
     }
 
     pub fn replay_wal<
-        K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de>,
-        V: Clone + Serialize + for<'de> Deserialize<'de>,
+        K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de> + Debug,
+        V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
     >(
         path: impl AsRef<Path>,
     ) -> Result<MemTable<K, V>, io::Error> {
