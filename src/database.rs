@@ -1,14 +1,14 @@
 //! TODO:
 
 use anyhow::Result as AnyResult;
+use csv::Reader;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
-    fs::{self, File},
+    fs,
     hash::Hash,
-    io::{self, BufReader},
+    io,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
 use crate::{
@@ -70,7 +70,11 @@ impl<
         if let Some(v) = self.memtable.get(key.clone()) {
             return Ok(Some(v));
         }
-        // TODO: explain
+        // We are interested in the last updated value, the latter file contain the
+        // latter updates, that's why the use of `rev()`.
+        // We are interested in the last updated value; the latter file contains
+        // the more recent updates, which is why `rev()` is used.
+        // TODO: test this behavior.
         for i in (0..self.sstable_counter).rev() {
             let tab = &self.sstables[i];
             let res = tab.get(key);
@@ -89,18 +93,20 @@ impl<
 
     // TODO: refactor this
     pub fn compact_sstables(&mut self) -> AnyResult<()> {
-        // TODO: make it a pathbuf
-        let new_sstable_path = format!("./instance/data-0.sstable");
+        let new_sstable_path = self.working_dir.join("data-0.sstable");
         let mut mini_mem_tab: MiniMemTab<K, V> = MiniMemTab::build(&new_sstable_path)?;
         let mut tables = Vec::with_capacity(self.sstable_counter);
         let mut index = 0;
         for tab in self.sstables.iter() {
-            let reader = BufReader::new(File::open(&tab.path)?);
-            let mut table =
-                serde_json::Deserializer::from_reader(reader).into_iter::<KeyValue<K, V>>();
+            let mut reader = Reader::from_path(&tab.path)?;
+            // TODO: maybe we can avoid storing everything into memory.
+            let mut table = reader
+                .deserialize::<KeyValue<K, V>>()
+                .collect::<Vec<_>>()
+                .into_iter();
 
             // Populate mini_mem_tab
-            if mini_mem_tab.insert(index, &mut table)? {
+            if mini_mem_tab.insert(index, &mut table)?.is_some() {
                 tables.push(table);
                 index += 1;
             }
@@ -114,7 +120,7 @@ impl<
             };
 
             let tab = &mut tables[index];
-            let _ = mini_mem_tab.insert(index, tab)?;
+            let _ = mini_mem_tab.insert(index, tab);
         }
 
         // At this point we have a temporary file for the new sstable
@@ -124,7 +130,6 @@ impl<
             fs::remove_file(&tab.path)?;
         }
         self.sstables = Vec::new();
-        let new_sstable_path = PathBuf::from_str(&new_sstable_path).unwrap();
         let new_sstable = SSTable::new(new_sstable_path);
         self.sstables.push(new_sstable);
         self.sstable_counter = 1;

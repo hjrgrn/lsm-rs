@@ -5,11 +5,12 @@ use std::{
     fmt::Debug,
     fs::{File, rename},
     hash::Hash,
-    io::{self, BufReader, BufWriter},
+    io,
+    path::{Path, PathBuf},
 };
 
+use csv::Writer;
 use serde::{Deserialize, Serialize};
-use serde_json::{StreamDeserializer, de::IoRead};
 
 use crate::sstable::KeyValue;
 
@@ -18,9 +19,10 @@ pub struct MiniMemTab<
     V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
 > {
     data: HashMap<K, (usize, Option<V>)>,
-    path: String,
-    tmp_path: String,
-    writer: BufWriter<File>,
+    path: PathBuf,
+    tmp_path: PathBuf,
+    writer: Writer<File>,
+    first_run: bool,
 }
 
 impl<
@@ -29,32 +31,34 @@ impl<
 > MiniMemTab<K, V>
 {
     // TODO: PathBuf instead of str
-    pub fn build(path: &str) -> Result<Self, io::Error> {
-        let tmp_path = format!("{path}.tmp");
-        let writer = BufWriter::new(File::create(&tmp_path)?);
+    pub fn build(path: impl AsRef<Path>) -> Result<Self, io::Error> {
+        let tmp_path = path.as_ref().with_added_extension("tmp");
+        let writer = csv::WriterBuilder::new()
+            .has_headers(true)
+            .from_path(&tmp_path)?;
         Ok(Self {
             data: HashMap::new(),
-            path: path.to_string(),
+            path: path.as_ref().to_path_buf(),
             tmp_path,
             writer,
+            first_run: true,
         })
     }
 
-    // TODO: return Ok(false) if iterator is empty, not the best design, have a custom error
-    // enum, one variant for Empty, another for io::Error
+    // TODO:
     pub fn insert(
         &mut self,
         index: usize,
-        iterator: &mut StreamDeserializer<'_, IoRead<BufReader<File>>, KeyValue<K, V>>,
-    ) -> Result<bool, io::Error> {
-        let pair = iterator.next();
-        let pair = if let Some(p) = pair {
-            p?
-        } else {
-            return Ok(false);
-        };
+        iterator: &mut impl Iterator<Item = Result<KeyValue<K, V>, csv::Error>>,
+    ) -> Result<Option<()>, csv::Error> {
+        let pair = match iterator.next() {
+            Some(p) => p,
+            None => {
+                return Ok(None);
+            }
+        }?;
         self.data.insert(pair.key, (index, pair.value));
-        Ok(true)
+        Ok(Some(()))
     }
 
     // TODO: needs refactoring
@@ -62,6 +66,10 @@ impl<
     // mini_mem_tab is empty.
     // Maybe have a custom error enum, one variant for Empty, another for io::Error
     pub fn write_to_sstable(&mut self) -> Result<Option<usize>, io::Error> {
+        if self.first_run {
+            self.first_run = false;
+            self.writer.write_record(&["key", "value"])?;
+        }
         let pair = self
             .data
             .iter()
@@ -78,11 +86,9 @@ impl<
         let value = pair.1.1.clone();
         let index = pair.1.0.clone();
         if value.is_some() {
-            let pair = KeyValue {
-                key: pair.1,
-                value: value,
-            };
-            serde_json::to_writer(&mut self.writer, &pair)?;
+            let pair = (&key, &value);
+            self.writer.serialize(pair)?;
+            self.writer.flush()?;
         }
         self.data.remove(&key);
 

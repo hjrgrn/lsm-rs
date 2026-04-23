@@ -1,9 +1,12 @@
 use std::{
+    char,
     fs::{self, File, read_dir},
-    io::BufReader,
+    io::{BufRead, BufReader},
 };
 
+use csv::Reader;
 use fake::{Fake, faker::lorem::en::Word};
+use lsm_tree_rs::sstable::KeyValue;
 
 use crate::utils::TestApp;
 
@@ -69,6 +72,12 @@ fn flush_memtable_writes_data_correctly() {
                 .unwrap()
                 .ends_with("sstable")
             {
+                // XXX:
+                let reader = BufReader::new(File::open(entry_path).unwrap());
+                for l in reader.lines() {
+                    println!("{}", l.unwrap());
+                }
+                println!("");
                 Some(e.unwrap())
             } else {
                 None
@@ -89,13 +98,14 @@ fn flush_memtable_writes_data_correctly() {
     let mut i = 0;
     for entry in entries {
         let entry_path = entry.path().to_str().unwrap().to_string();
-        let mut reader = BufReader::new(File::open(entry_path).unwrap());
-        let data: Vec<(String, String)> = serde_json::from_reader(&mut reader).unwrap();
-        for (k, v) in data.iter() {
+        let mut reader = Reader::from_path(entry_path).unwrap();
+        for kv in reader.deserialize::<KeyValue<String, String>>() {
+            let kv = kv.unwrap();
             let (key, value) = &table[i];
-            assert_eq!(k, key);
-            assert_eq!(v, value);
-            assert_eq!(k, &i.to_string());
+            let k = kv.key;
+            assert_eq!(&k, key);
+            assert_eq!(&kv.value.unwrap(), value);
+            assert_eq!(k, i.to_string());
             i += 1;
         }
     }
