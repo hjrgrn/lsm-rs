@@ -111,3 +111,89 @@ fn flush_memtable_writes_data_correctly() {
     }
     assert_eq!(i, table.len() - 1);
 }
+
+#[test]
+fn compact_sstables_works_correctly() {
+    // XXX: duplication
+    let amount_of_tables = 10;
+    let memtable_size = 2;
+    let mut app = TestApp::build(memtable_size, amount_of_tables).unwrap();
+
+    // Create a Vec of key/value pairs and populate the database with it.
+    // The pairs with the smaller key have been created earlier.
+    let mut table: Vec<(String, String)> = Vec::new();
+    for i in 0..amount_of_tables * memtable_size + 2 {
+        let key = char::from_u32(97 + i as u32).unwrap().to_string();
+        let val: String = Word().fake();
+        table.push((key.clone(), val.clone()));
+        let res = app.db.put(key, val);
+        assert!(res.is_ok());
+    }
+
+    // Gather every sstable file created.
+    let entries = read_dir(app.working_dir()).unwrap();
+    let mut entries: Vec<_> = entries
+        .filter_map(|e| {
+            let entry_path = e.as_ref().unwrap().path();
+
+            if entry_path
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .ends_with("sstable")
+            {
+                Some(e.unwrap())
+            } else {
+                None
+            }
+        })
+        .collect();
+    // SSTables are stored in a Vec and ordered by creation time (via filename),
+    // so earlier files appear in earlier SSTables.
+    entries.sort_by(|file0, file1| {
+        file0
+            .file_name()
+            .to_str()
+            .unwrap()
+            .cmp(file1.file_name().to_str().unwrap())
+    });
+
+    // Extract the newly created sstable after compaction.
+    let entries = read_dir(app.working_dir()).unwrap();
+    let entries: Vec<_> = entries
+        .filter_map(|e| {
+            let entry_path = e.as_ref().unwrap().path();
+
+            if entry_path
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .ends_with("sstable")
+            {
+                Some(e.unwrap())
+            } else {
+                None
+            }
+        })
+        .collect();
+    // Assert we only have one entry
+    assert_eq!(entries.len(), 1);
+
+    let mut i = 0;
+    let entry = entries.iter().next().unwrap();
+    let entry_path = entry.path().to_str().unwrap().to_string();
+    let mut reader = Reader::from_path(entry_path).unwrap();
+    for kv in reader.deserialize::<KeyValue<String, String>>() {
+        let index = char::from_u32(97 + i as u32).unwrap().to_string();
+        let kv = kv.unwrap();
+        let (key, value) = &table[i];
+        let k = kv.key;
+        assert_eq!(&k, key);
+        assert_eq!(&kv.value.unwrap(), value);
+        assert_eq!(k, index);
+        i += 1;
+    }
+    assert_eq!(i, table.len());
+}
