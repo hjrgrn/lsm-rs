@@ -139,10 +139,7 @@ impl<
     fn add_element(&mut self, key: K, value: Option<V>) -> AnyResult<Option<V>> {
         // TODO: explain why clone is necessary
         self.wal.write::<K, V>(key.clone(), value.clone())?;
-        let val = match value {
-            Some(e) => self.memtable.put(key, e),
-            None => self.memtable.remove(key),
-        };
+        let val = self.memtable.put(key, value);
         self.memtable_size += 1;
         if self.memtable_size >= self.max_memtable_size {
             self.flush_memtable()?;

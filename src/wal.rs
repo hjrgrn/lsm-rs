@@ -49,7 +49,7 @@ impl WAL {
                 let mut reader = BufReader::new(&f);
                 let data: Vec<(K, V)> = serde_json::from_reader(&mut reader)?;
                 for (k, v) in data.into_iter() {
-                    let _ = tab.put(k, v);
+                    let _ = tab.put(k, Some(v));
                 }
                 drop(f);
                 remove_file(&path)?;
