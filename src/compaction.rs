@@ -22,7 +22,6 @@ pub struct MiniMemTab<
     path: PathBuf,
     tmp_path: PathBuf,
     writer: Writer<File>,
-    first_run: bool,
 }
 
 impl<
@@ -30,18 +29,17 @@ impl<
     V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
 > MiniMemTab<K, V>
 {
-    // TODO: PathBuf instead of str
     pub fn build(path: impl AsRef<Path>) -> Result<Self, io::Error> {
         let tmp_path = path.as_ref().with_added_extension("tmp");
-        let writer = csv::WriterBuilder::new()
+        let mut writer = csv::WriterBuilder::new()
             .has_headers(true)
             .from_path(&tmp_path)?;
+        writer.write_record(&["key", "value"])?;
         Ok(Self {
             data: HashMap::new(),
             path: path.as_ref().to_path_buf(),
             tmp_path,
             writer,
-            first_run: true,
         })
     }
 
@@ -66,10 +64,6 @@ impl<
     // mini_mem_tab is empty.
     // Maybe have a custom error enum, one variant for Empty, another for io::Error
     pub fn write_to_sstable(&mut self) -> Result<Option<usize>, io::Error> {
-        if self.first_run {
-            self.first_run = false;
-            self.writer.write_record(&["key", "value"])?;
-        }
         let pair = self
             .data
             .iter()

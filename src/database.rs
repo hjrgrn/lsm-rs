@@ -93,7 +93,7 @@ impl<
 
     // TODO: refactor this
     pub fn compact_sstables(&mut self) -> AnyResult<()> {
-        let new_sstable_path = self.working_dir.join("data-0.sstable");
+        let new_sstable_path = self.working_dir.join("0-data.sstable");
         let mut mini_mem_tab: MiniMemTab<K, V> = MiniMemTab::build(&new_sstable_path)?;
         let mut tables = Vec::with_capacity(self.sstable_counter);
         let mut index = 0;
@@ -154,7 +154,7 @@ impl<
     fn flush_memtable(&mut self) -> AnyResult<()> {
         let sstable_path = self
             .working_dir
-            .join(format!("data-{}.sstable", self.sstable_counter));
+            .join(format!("{}-data.sstable", self.sstable_counter));
         let sstable = SSTable::new(sstable_path.clone());
         sstable.write_sstable(&self.memtable)?;
         self.sstable_counter += 1;
