@@ -1,30 +1,31 @@
 //! Write Ahead Log
 //! XXX:
 
+use std::io::ErrorKind as IoErrorKind;
 use std::{
     fmt::Debug,
     fs::{File, remove_file},
     hash::Hash,
-    io::{self, BufReader, BufWriter, ErrorKind},
-    path::{Path, PathBuf},
+    io,
+    path::Path,
 };
 
+use csv::{ErrorKind, Reader, Writer, WriterBuilder};
 use serde::{Deserialize, Serialize};
 
 use crate::memtable::MemTable;
+use crate::sstable::KeyValue;
 
 pub struct WAL {
-    path: PathBuf,
-    writer: BufWriter<File>,
+    // path: PathBuf,
+    writer: Writer<File>,
 }
 
 impl WAL {
     pub fn build(path: impl AsRef<Path>) -> Result<Self, io::Error> {
-        let writer = BufWriter::new(File::options().append(true).create(true).open(&path)?);
-        Ok(Self {
-            path: path.as_ref().to_path_buf(),
-            writer,
-        })
+        let mut writer = WriterBuilder::new().has_headers(true).from_path(&path)?;
+        writer.write_record(&["key", "value"])?;
+        Ok(Self { writer })
     }
 
     // TODO: maybe other trait bounds
@@ -32,9 +33,8 @@ impl WAL {
         &mut self,
         key: K,
         value: Option<V>,
-    ) -> Result<(), io::Error> {
-        serde_json::to_writer(&mut self.writer, &(key, value))?;
-        Ok(())
+    ) -> Result<(), csv::Error> {
+        self.writer.serialize((&key, &value))
     }
 
     pub fn replay_wal<
@@ -42,26 +42,26 @@ impl WAL {
         V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
     >(
         path: impl AsRef<Path>,
-    ) -> Result<MemTable<K, V>, io::Error> {
+    ) -> Result<MemTable<K, V>, csv::Error> {
         let mut tab = MemTable::new();
-        match File::open(&path) {
-            Ok(f) => {
-                let mut reader = BufReader::new(&f);
-                let data: Vec<(K, V)> = serde_json::from_reader(&mut reader)?;
-                for (k, v) in data.into_iter() {
-                    let _ = tab.put(k, Some(v));
+
+        match Reader::from_path(&path) {
+            Ok(mut reader) => {
+                for kv in reader.deserialize::<KeyValue<K, V>>() {
+                    let kv = kv?;
+                    let _ = tab.put(kv.key, kv.value);
                 }
-                drop(f);
-                remove_file(&path)?;
-                Ok(tab)
             }
             Err(e) => {
-                if e.kind() == ErrorKind::NotFound {
-                    Ok(tab)
+                if let ErrorKind::Io(err) = e.kind() {
+                    if let IoErrorKind::NotFound = err.kind() {}
+                    return Ok(tab);
                 } else {
-                    Err(e)
+                    return Err(e);
                 }
             }
-        }
+        };
+        remove_file(&path)?;
+        Ok(tab)
     }
 }
