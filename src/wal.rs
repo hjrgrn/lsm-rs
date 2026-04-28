@@ -25,6 +25,7 @@ impl WAL {
     pub fn build(path: impl AsRef<Path>) -> Result<Self, io::Error> {
         let mut writer = WriterBuilder::new().has_headers(true).from_path(&path)?;
         writer.write_record(&["key", "value"])?;
+        writer.flush()?;
         Ok(Self { writer })
     }
 
@@ -34,7 +35,8 @@ impl WAL {
         key: K,
         value: Option<V>,
     ) -> Result<(), csv::Error> {
-        self.writer.serialize((&key, &value))
+        self.writer.serialize((&key, &value))?;
+        self.writer.flush().map_err(|e| e.into())
     }
 
     pub fn replay_wal<
@@ -54,8 +56,9 @@ impl WAL {
             }
             Err(e) => {
                 if let ErrorKind::Io(err) = e.kind() {
-                    if let IoErrorKind::NotFound = err.kind() {}
-                    return Ok(tab);
+                    if let IoErrorKind::NotFound = err.kind() {
+                        return Ok(tab);
+                    }
                 } else {
                     return Err(e);
                 }
