@@ -20,6 +20,7 @@ pub struct TestApp {
     pub manifest_path: PathBuf,
     working_dir: TempDir,
     pub table: Vec<(usize, String)>,
+    pub table_cursor: usize,
     pub sstables: Vec<DirEntry>,
 }
 
@@ -44,6 +45,7 @@ impl TestApp {
             manifest_path,
             working_dir,
             table: Vec::new(),
+            table_cursor: 0,
             sstables: Vec::new(),
         })
     }
@@ -103,6 +105,28 @@ impl TestApp {
             index_file0.cmp(&index_file1)
         });
         self.sstables = entries;
+    }
+
+    /// Uses `self.table_cursor` to remove the first added element from `self.db`.
+    /// Does not delete the element from `self.table`.
+    pub fn dequeue_db(&mut self) -> Result<KeyValue<usize, String>, anyhow::Error> {
+        let (k, v) = self
+            .table
+            .get(self.table_cursor)
+            .ok_or(anyhow::anyhow!("No elements in the table."))?;
+        self.table_cursor += 1;
+
+        let value = self.db.delete(*k)?.ok_or(anyhow::anyhow!(
+            "No elements in the table (this should not happen)."
+        ))?;
+
+        // Just to be safe.
+        assert_eq!(v, &value);
+
+        Ok(KeyValue {
+            key: *k,
+            value: Some(v.clone()),
+        })
     }
 }
 

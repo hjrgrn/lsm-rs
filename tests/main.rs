@@ -85,3 +85,31 @@ fn compact_sstables_works_correctly() {
     }
     assert_eq!(i, app.table.len());
 }
+
+#[test]
+fn wal_is_updated_correctly() {
+    let n_sstables = 10;
+    let memtable_size = 2;
+    let mut app = TestApp::build(memtable_size, n_sstables).unwrap();
+
+    let mut reader = Reader::from_path(&app.wal_path).unwrap();
+    let mut reader = reader.deserialize::<KeyValue<usize, String>>();
+    let mut i = 0;
+    for _ in 0..10 {
+        // Add an entry
+        app.populate_database(1);
+        // Assert key has been added to WAL.
+        let kv = reader.next().unwrap().unwrap();
+        assert_eq!(kv.key, app.table[i].0);
+        assert_eq!(kv.value.unwrap(), app.table[i].1);
+        i += 1;
+
+        // Remove the entry that has been added.
+        let removed_kv = app.dequeue_db().unwrap();
+
+        // Assert the removal from WAL.
+        let kv = reader.next().unwrap().unwrap();
+        assert_eq!(kv.key, removed_kv.key);
+        assert!(kv.value.is_none());
+    }
+}
