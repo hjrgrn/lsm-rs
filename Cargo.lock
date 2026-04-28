@@ -213,7 +213,6 @@ dependencies = [
  "fake",
  "regex",
  "serde",
- "serde_json",
  "tempfile",
 ]
 
