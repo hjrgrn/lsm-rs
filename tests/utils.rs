@@ -1,9 +1,7 @@
-use std::{
-    fs::{DirEntry, read_dir},
-    path::PathBuf,
-};
+use std::{fs::read_dir, path::PathBuf};
 
 use anyhow::Result as AnyResult;
+use csv::Reader;
 use fake::{Fake, faker::lorem::en::Word};
 use regex::Regex;
 use tempfile::TempDir;
@@ -21,7 +19,7 @@ pub struct TestApp {
     working_dir: TempDir,
     pub table: Vec<(usize, String)>,
     pub table_cursor: usize,
-    pub sstables: Vec<DirEntry>,
+    pub sstables: Vec<PathBuf>,
 }
 
 impl TestApp {
@@ -82,15 +80,15 @@ impl TestApp {
                     .unwrap()
                     .ends_with("sstable")
                 {
-                    Some(e.unwrap())
+                    Some(e.unwrap().path())
                 } else {
                     None
                 }
             })
             .collect();
         let rgx = Regex::new(r"^(?<index>[0-9]+)-data\.sstable$").unwrap();
-        let extract_file_index = |file: &DirEntry| {
-            let filename = file.file_name();
+        let extract_file_index = |file: &PathBuf| {
+            let filename = file.file_name().unwrap();
             let filename = filename.to_str().unwrap();
             let c = rgx.captures(filename).unwrap();
             let index_file = &c["index"];
@@ -127,6 +125,28 @@ impl TestApp {
             key: *k,
             value: Some(v.clone()),
         })
+    }
+
+    /// Test entries are written correctly in the manifest.
+    pub fn test_manifest_entries(&mut self, added_elements: usize, entries: usize) {
+        // Add multiple sstables.
+        self.populate_database(added_elements);
+        let mut reader = Reader::from_path(&self.manifest_path).unwrap();
+        let mut reader = reader.deserialize::<PathBuf>();
+        let mut i = 0;
+        for path in &mut reader {
+            let file_name = format!("{}-data.sstable", i);
+            let supposed_path = self.working_dir().join(file_name);
+            // Assert `supposed_path` is one of the sstables.
+            assert!(self.sstables.contains(&supposed_path));
+            // Assert sstables are added to the manifest.
+            assert_eq!(path.unwrap(), supposed_path);
+            i += 1;
+        }
+        // Assert no more sstables have been written.
+        assert!(reader.next().is_none());
+        // Assert every sstable has been added.
+        assert_eq!(i, entries);
     }
 }
 

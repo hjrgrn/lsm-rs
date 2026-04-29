@@ -49,7 +49,7 @@ fn flush_memtable_writes_data_correctly() {
     // order.
     let mut i = 0;
     for entry in app.sstables.iter() {
-        let entry_path = entry.path().to_str().unwrap().to_string();
+        let entry_path = entry.to_str().unwrap().to_string();
         let mut reader = Reader::from_path(entry_path).unwrap();
         for kv in reader.deserialize::<KeyValue<usize, String>>() {
             assert_entry(kv, &app, &mut i);
@@ -78,7 +78,7 @@ fn compact_sstables_works_correctly() {
 
     let mut i = 0;
     let entry = app.sstables.iter().next().unwrap();
-    let entry_path = entry.path().to_str().unwrap().to_string();
+    let entry_path = entry.to_str().unwrap().to_string();
     let mut reader = Reader::from_path(entry_path).unwrap();
     for kv in reader.deserialize::<KeyValue<usize, String>>() {
         assert_entry(kv, &app, &mut i);
@@ -94,15 +94,13 @@ fn wal_is_updated_correctly() {
 
     let mut reader = Reader::from_path(&app.wal_path).unwrap();
     let mut reader = reader.deserialize::<KeyValue<usize, String>>();
-    let mut i = 0;
-    for _ in 0..10 {
+    for i in 0..10 {
         // Add an entry
         app.populate_database(1);
         // Assert key has been added to WAL.
         let kv = reader.next().unwrap().unwrap();
         assert_eq!(kv.key, app.table[i].0);
         assert_eq!(kv.value.unwrap(), app.table[i].1);
-        i += 1;
 
         // Remove the entry that has been added.
         let removed_kv = app.dequeue_db().unwrap();
@@ -112,4 +110,28 @@ fn wal_is_updated_correctly() {
         assert_eq!(kv.key, removed_kv.key);
         assert!(kv.value.is_none());
     }
+}
+
+#[test]
+fn manifest_works_correctly() {
+    let n_sstables = 10;
+    let memtable_size = 2;
+    let added_elements = 10;
+    let mut app = TestApp::build(memtable_size, n_sstables).unwrap();
+
+    // Manifest should not exists yet.
+    assert!(!fs::exists(&app.manifest_path).unwrap());
+
+    // Add multiple sstables.
+    app.test_manifest_entries(added_elements, added_elements / 2);
+
+    // Add more sstables.
+    app.test_manifest_entries(added_elements, added_elements);
+
+    // Instanciate a new test app using the files produced by the old app.
+    let mut new_app = TestApp::build(memtable_size, n_sstables).unwrap();
+    new_app.test_manifest_entries(added_elements, added_elements);
+
+    // Trigger a compaction.
+    new_app.test_manifest_entries(2, 1);
 }
