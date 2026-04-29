@@ -77,7 +77,7 @@ fn compact_sstables_works_correctly() {
     assert_eq!(app.sstables.len(), 1);
 
     let mut i = 0;
-    let entry = app.sstables.iter().next().unwrap();
+    let entry = app.sstables.first().unwrap();
     let entry_path = entry.to_str().unwrap().to_string();
     let mut reader = Reader::from_path(entry_path).unwrap();
     for kv in reader.deserialize::<KeyValue<usize, String>>() {

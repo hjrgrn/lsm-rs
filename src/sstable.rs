@@ -30,7 +30,7 @@ impl SSTable {
             .from_path(&self.path)?;
         let mut sorted: Vec<_> = mem_table.data().iter().collect();
         sorted.sort_by_key(|e| e.0);
-        writer.write_record(&["key", "value"])?;
+        writer.write_record(["key", "value"])?;
         for record in &sorted {
             writer.serialize(record)?;
         }

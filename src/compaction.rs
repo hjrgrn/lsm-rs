@@ -34,7 +34,7 @@ impl<
         let mut writer = csv::WriterBuilder::new()
             .has_headers(true)
             .from_path(&tmp_path)?;
-        writer.write_record(&["key", "value"])?;
+        writer.write_record(["key", "value"])?;
         Ok(Self {
             data: HashMap::new(),
             path: path.as_ref().to_path_buf(),
@@ -78,7 +78,7 @@ impl<
         // TODO: handle the None value
         let key = pair.0.clone();
         let value = pair.1.1.clone();
-        let index = pair.1.0.clone();
+        let index = pair.1.0;
         if value.is_some() {
             let pair = (&key, &value);
             self.writer.serialize(pair)?;

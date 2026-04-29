@@ -13,6 +13,15 @@ pub struct MemTable<
 > {
     data: HashMap<K, Option<V>>,
 }
+impl<
+    K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de> + Debug,
+    V: Clone + Debug,
+> Default for MemTable<K, V>
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl<
     K: Ord + PartialEq + Eq + Hash + Clone + Serialize + for<'de> Deserialize<'de> + Debug,

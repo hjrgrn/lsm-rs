@@ -57,7 +57,7 @@ impl Manifest {
             .has_headers(true)
             .from_path(&tmp_path)?;
         // TODO: error handling: delete tmp file on failure, after dropping writer.
-        writer.write_record(&["SStablePaths"])?;
+        writer.write_record(["SStablePaths"])?;
         for path in self.sstable_paths.iter() {
             writer.serialize(path)?;
         }

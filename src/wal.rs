@@ -24,7 +24,7 @@ pub struct WAL {
 impl WAL {
     pub fn build(path: impl AsRef<Path>) -> Result<Self, io::Error> {
         let mut writer = WriterBuilder::new().has_headers(true).from_path(&path)?;
-        writer.write_record(&["key", "value"])?;
+        writer.write_record(["key", "value"])?;
         writer.flush()?;
         Ok(Self { writer })
     }
@@ -45,7 +45,7 @@ impl WAL {
     >(
         path: impl AsRef<Path>,
     ) -> Result<MemTable<K, V>, csv::Error> {
-        let mut tab = MemTable::new();
+        let mut tab = MemTable::default();
 
         match Reader::from_path(&path) {
             Ok(mut reader) => {

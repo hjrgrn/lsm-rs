@@ -77,10 +77,9 @@ impl<
         // TODO: test this behavior.
         for i in (0..self.sstable_counter).rev() {
             let tab = &self.sstables[i];
-            let res = tab.get(key);
+            // TODO: remove memcopy
+            let res = tab.get(key.clone());
             if res.is_ok() {
-                return res;
-            } else {
                 return res;
             }
         }
@@ -167,7 +166,7 @@ impl<
     }
 
     fn format_memtable(&mut self) {
-        self.memtable = MemTable::new();
+        self.memtable = MemTable::default();
         self.memtable_size = 0;
     }
 }
