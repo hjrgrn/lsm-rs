@@ -1,13 +1,14 @@
 //! TODO:
 
 use anyhow::Result as AnyResult;
+use csv::Reader;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::{self, File},
+    fmt::Debug,
+    fs,
     hash::Hash,
-    io::{self, BufReader},
+    io,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
 use crate::{
@@ -19,9 +20,10 @@ use crate::{
 };
 
 pub struct Database<
-    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Clone + Serialize + for<'de> Deserialize<'de>,
+    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone + Debug,
+    V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
 > {
+    working_dir: PathBuf,
     memtable: MemTable<K, V>,
     max_memtable_size: usize,
     memtable_size: usize,
@@ -34,11 +36,12 @@ pub struct Database<
 
 // TODO: error
 impl<
-    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone,
-    V: Clone + Serialize + for<'de> Deserialize<'de>,
+    K: Serialize + for<'de> Deserialize<'de> + Ord + PartialEq + Eq + Hash + Clone + Debug,
+    V: Clone + Serialize + for<'de> Deserialize<'de> + Debug,
 > Database<K, V>
 {
     pub fn build(
+        working_dir: impl AsRef<Path>,
         max_memtable_size: usize,
         wal_path: impl AsRef<Path>,
         manifest_path: impl AsRef<Path>,
@@ -46,6 +49,7 @@ impl<
     ) -> AnyResult<Self> {
         let tab = WAL::replay_wal::<K, V>(&wal_path)?;
         Ok(Self {
+            working_dir: working_dir.as_ref().to_path_buf(),
             memtable_size: tab.size(),
             memtable: tab,
             max_memtable_size,
@@ -66,7 +70,11 @@ impl<
         if let Some(v) = self.memtable.get(key.clone()) {
             return Ok(Some(v));
         }
-        // TODO: explain
+        // We are interested in the last updated value, the latter file contain the
+        // latter updates, that's why the use of `rev()`.
+        // We are interested in the last updated value; the latter file contains
+        // the more recent updates, which is why `rev()` is used.
+        // TODO: test this behavior.
         for i in (0..self.sstable_counter).rev() {
             let tab = &self.sstables[i];
             let res = tab.get(key);
@@ -85,18 +93,20 @@ impl<
 
     // TODO: refactor this
     pub fn compact_sstables(&mut self) -> AnyResult<()> {
-        // TODO: make it a pathbuf
-        let new_sstable_path = format!("./instance/data-0.sstable");
+        let new_sstable_path = self.working_dir.join("0-data.sstable");
         let mut mini_mem_tab: MiniMemTab<K, V> = MiniMemTab::build(&new_sstable_path)?;
         let mut tables = Vec::with_capacity(self.sstable_counter);
         let mut index = 0;
         for tab in self.sstables.iter() {
-            let reader = BufReader::new(File::open(&tab.path)?);
-            let mut table =
-                serde_json::Deserializer::from_reader(reader).into_iter::<KeyValue<K, V>>();
+            let mut reader = Reader::from_path(&tab.path)?;
+            // TODO: maybe we can avoid storing everything into memory.
+            let mut table = reader
+                .deserialize::<KeyValue<K, V>>()
+                .collect::<Vec<_>>()
+                .into_iter();
 
             // Populate mini_mem_tab
-            if mini_mem_tab.insert(index, &mut table)? {
+            if mini_mem_tab.insert(index, &mut table)?.is_some() {
                 tables.push(table);
                 index += 1;
             }
@@ -110,7 +120,7 @@ impl<
             };
 
             let tab = &mut tables[index];
-            let _ = mini_mem_tab.insert(index, tab)?;
+            let _ = mini_mem_tab.insert(index, tab);
         }
 
         // At this point we have a temporary file for the new sstable
@@ -120,7 +130,6 @@ impl<
             fs::remove_file(&tab.path)?;
         }
         self.sstables = Vec::new();
-        let new_sstable_path = PathBuf::from_str(&new_sstable_path).unwrap();
         let new_sstable = SSTable::new(new_sstable_path);
         self.sstables.push(new_sstable);
         self.sstable_counter = 1;
@@ -130,12 +139,9 @@ impl<
     fn add_element(&mut self, key: K, value: Option<V>) -> AnyResult<Option<V>> {
         // TODO: explain why clone is necessary
         self.wal.write::<K, V>(key.clone(), value.clone())?;
-        let val = match value {
-            Some(e) => self.memtable.put(key, e),
-            None => self.memtable.remove(key),
-        };
+        let val = self.memtable.put(key, value);
         self.memtable_size += 1;
-        if self.memtable_size > self.max_memtable_size {
+        if self.memtable_size >= self.max_memtable_size {
             self.flush_memtable()?;
         }
         Ok(val)
@@ -143,8 +149,10 @@ impl<
 
     // TODO: error handling
     fn flush_memtable(&mut self) -> AnyResult<()> {
-        let sstable_path = format!("data-{}.sstable", self.sstable_counter);
-        let sstable = SSTable::new(PathBuf::from_str(&sstable_path)?);
+        let sstable_path = self
+            .working_dir
+            .join(format!("{}-data.sstable", self.sstable_counter));
+        let sstable = SSTable::new(sstable_path.clone());
         sstable.write_sstable(&self.memtable)?;
         self.sstable_counter += 1;
         self.sstables.push(sstable);

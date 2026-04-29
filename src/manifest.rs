@@ -1,13 +1,12 @@
 //! XXX:
 
 use anyhow::Result as AnyResult;
+use csv::{ErrorKind, Reader, WriterBuilder};
+use std::io::ErrorKind as IoErrorKind;
 use std::{
     fs,
-    io::{BufReader, BufWriter, ErrorKind},
     path::{Path, PathBuf},
 };
-
-pub const MANIFEST_PATH: &str = "./instance/MANIFEST";
 
 pub(crate) struct Manifest {
     path: PathBuf,
@@ -17,10 +16,12 @@ pub(crate) struct Manifest {
 impl Manifest {
     pub(crate) fn read_manifest(path: impl AsRef<Path>) -> AnyResult<Manifest> {
         let path = path.as_ref().to_path_buf();
-        let f = match fs::File::open(&path) {
-            Ok(f) => f,
+
+        let mut reader = match Reader::from_path(&path) {
+            Ok(r) => r,
             Err(e) => {
-                if let ErrorKind::NotFound = e.kind() {
+                if let ErrorKind::Io(err) = e.kind() {
+                    if let IoErrorKind::NotFound = err.kind() {}
                     return Ok(Manifest {
                         path,
                         sstable_paths: Vec::new(),
@@ -31,8 +32,11 @@ impl Manifest {
             }
         };
 
-        let mut reader = BufReader::new(&f);
-        let sstable_paths: Vec<PathBuf> = serde_json::from_reader(&mut reader)?;
+        let sstable_paths_res = reader.deserialize::<PathBuf>().collect::<Vec<_>>();
+        let sstable_paths: Vec<PathBuf> = sstable_paths_res
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
+
         Ok(Manifest {
             path,
             sstable_paths,
@@ -41,13 +45,24 @@ impl Manifest {
 
     pub(crate) fn write_manifest(&self) -> AnyResult<()> {
         // TODO: use crate tempfile
-        let tmp_path = self.path.join(".tmp");
-        let f = fs::File::create(&tmp_path)?;
-        let writer = BufWriter::new(&f);
-        if let Err(e) = serde_json::to_writer(writer, &self.sstable_paths) {
-            fs::remove_file(tmp_path)?;
-            return Err(e.into());
+        let mut tmp_path = self.path.clone();
+        let success = tmp_path.add_extension("tmp");
+        if !success {
+            return Err(anyhow::anyhow!(
+                "Problems with tmp_path in Manifest::write_manifest."
+            ));
         }
+
+        let mut writer = WriterBuilder::new()
+            .has_headers(true)
+            .from_path(&tmp_path)?;
+        // TODO: error handling: delete tmp file on failure, after dropping writer.
+        writer.write_record(&["SStablePaths"])?;
+        for path in self.sstable_paths.iter() {
+            writer.serialize(path)?;
+        }
+        writer.flush()?;
+
         // TODO: explain atomic rename
         fs::rename(&tmp_path, &self.path)?;
 
