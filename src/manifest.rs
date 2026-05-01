@@ -10,7 +10,8 @@ use std::{
 
 pub(crate) struct Manifest {
     path: PathBuf,
-    sstable_paths: Vec<PathBuf>,
+    // TODO: getter
+    pub sstable_paths: Vec<PathBuf>,
 }
 
 impl Manifest {
@@ -65,7 +66,6 @@ impl Manifest {
 
         // TODO: explain atomic rename
         fs::rename(&tmp_path, &self.path)?;
-
         Ok(())
     }
 

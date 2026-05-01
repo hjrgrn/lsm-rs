@@ -48,15 +48,24 @@ impl<
         compaction_threshold: usize,
     ) -> AnyResult<Self> {
         let tab = WAL::replay_wal::<K, V>(&wal_path)?;
+
+        let manifest = Manifest::read_manifest(&manifest_path)?;
+        let mut sstables = Vec::new();
+        for path in &manifest.sstable_paths {
+            // TODO: `SSTable::new() should accept `impl AsRef<Path>`
+            sstables.push(SSTable::new(path.to_path_buf()));
+        }
+        let sstable_counter = sstables.len();
+
         Ok(Self {
             working_dir: working_dir.as_ref().to_path_buf(),
             memtable_size: tab.size(),
             memtable: tab,
             max_memtable_size,
-            sstables: Vec::new(),
-            sstable_counter: 0,
+            sstables,
+            sstable_counter,
             wal: WAL::build(&wal_path)?,
-            manifest: Manifest::read_manifest(manifest_path)?,
+            manifest,
             compaction_threshold,
         })
     }
@@ -125,6 +134,7 @@ impl<
         // At this point we have a temporary file for the new sstable
 
         self.manifest.refresh_manifest(&new_sstable_path)?;
+        // WARN: When we will turn this multithreaded we will have a TOCTOU rance
         for tab in &self.sstables {
             fs::remove_file(&tab.path)?;
         }
@@ -162,6 +172,7 @@ impl<
         if self.sstable_counter > self.compaction_threshold {
             self.compact_sstables()?;
         }
+
         Ok(())
     }
 
