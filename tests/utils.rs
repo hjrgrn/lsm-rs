@@ -16,15 +16,23 @@ pub struct TestApp {
     pub wal_path: PathBuf,
     pub key_index: usize,
     pub manifest_path: PathBuf,
-    working_dir: TempDir,
+    pub working_dir: TempDir,
     pub table: Vec<(usize, String)>,
     pub table_cursor: usize,
     pub sstables: Vec<PathBuf>,
 }
 
 impl TestApp {
-    pub fn build(max_memtable_size: usize, compaction_threshold: usize) -> AnyResult<Self> {
-        let working_dir = tempfile::tempdir().unwrap();
+    pub fn build(
+        max_memtable_size: usize,
+        compaction_threshold: usize,
+        working_dir: Option<TempDir>,
+    ) -> AnyResult<Self> {
+        let working_dir = if let Some(w) = working_dir {
+            w
+        } else {
+            tempfile::tempdir().unwrap()
+        };
         let working_dir_path = working_dir.path().to_path_buf();
         let wal_path = working_dir.path().join(WALL_NAME);
         let manifest_path = working_dir.path().join(MANIFEST_NAME);
@@ -128,9 +136,9 @@ impl TestApp {
     }
 
     /// Test entries are written correctly in the manifest.
-    pub fn test_manifest_entries(&mut self, added_elements: usize, entries: usize) {
-        // Add multiple sstables.
-        self.populate_database(added_elements);
+    pub fn test_manifest_entries(&mut self, entries: usize) {
+        // Gather all the sstable entries of the working directory.
+        self.gather_and_sort_sstables();
         let mut reader = Reader::from_path(&self.manifest_path).unwrap();
         let mut reader = reader.deserialize::<PathBuf>();
         let mut i = 0;

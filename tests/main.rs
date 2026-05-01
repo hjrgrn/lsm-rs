@@ -9,7 +9,7 @@ mod utils;
 
 #[test]
 pub fn assert_wall_is_created_correctly() {
-    let app = TestApp::build(10, 10).unwrap();
+    let app = TestApp::build(10, 10, None).unwrap();
     assert!(fs::exists(&app.wal_path).unwrap());
 }
 
@@ -18,7 +18,7 @@ pub fn put_get_and_delete_work_correctly_in_memory() {
     let key = 1;
     let value = "value".to_string();
 
-    let mut app = TestApp::build(10, 10).unwrap();
+    let mut app = TestApp::build(10, 10, None).unwrap();
 
     // Put a value and retrieve it.
     app.db.put(key, value.clone()).unwrap();
@@ -41,7 +41,7 @@ pub fn put_get_and_delete_work_correctly_in_memory() {
 fn flush_memtable_writes_data_correctly() {
     let n_sstables = 10;
     let memtable_size = 2;
-    let mut app = TestApp::build(memtable_size, n_sstables).unwrap();
+    let mut app = TestApp::build(memtable_size, n_sstables, None).unwrap();
     app.populate_database(n_sstables * memtable_size - 1);
     app.gather_and_sort_sstables();
 
@@ -62,7 +62,7 @@ fn flush_memtable_writes_data_correctly() {
 fn compact_sstables_works_correctly() {
     let n_sstables = 10;
     let memtable_size = 2;
-    let mut app = TestApp::build(memtable_size, n_sstables).unwrap();
+    let mut app = TestApp::build(memtable_size, n_sstables, None).unwrap();
 
     // Before compression.
     app.populate_database(n_sstables * memtable_size);
@@ -90,7 +90,7 @@ fn compact_sstables_works_correctly() {
 fn wal_is_updated_correctly() {
     let n_sstables = 10;
     let memtable_size = 2;
-    let mut app = TestApp::build(memtable_size, n_sstables).unwrap();
+    let mut app = TestApp::build(memtable_size, n_sstables, None).unwrap();
 
     let mut reader = Reader::from_path(&app.wal_path).unwrap();
     let mut reader = reader.deserialize::<KeyValue<usize, String>>();
@@ -116,22 +116,25 @@ fn wal_is_updated_correctly() {
 fn manifest_works_correctly() {
     let n_sstables = 10;
     let memtable_size = 2;
-    let added_elements = 10;
-    let mut app = TestApp::build(memtable_size, n_sstables).unwrap();
+    let mut app = TestApp::build(memtable_size, n_sstables, None).unwrap();
 
     // Manifest should not exists yet.
     assert!(!fs::exists(&app.manifest_path).unwrap());
 
     // Add multiple sstables.
-    app.test_manifest_entries(added_elements, added_elements / 2);
+    app.populate_database(n_sstables);
+    app.test_manifest_entries(n_sstables / 2);
 
     // Add more sstables.
-    app.test_manifest_entries(added_elements, added_elements);
+    app.populate_database(n_sstables);
+    app.test_manifest_entries(n_sstables);
 
     // Instanciate a new test app using the files produced by the old app.
-    let mut new_app = TestApp::build(memtable_size, n_sstables).unwrap();
-    new_app.test_manifest_entries(added_elements, added_elements);
+    let mut new_app = TestApp::build(memtable_size, n_sstables, Some(app.working_dir)).unwrap();
+    new_app.table = app.table;
+    new_app.test_manifest_entries(n_sstables);
 
     // Trigger a compaction.
-    new_app.test_manifest_entries(2, 1);
+    new_app.populate_database(1);
+    new_app.test_manifest_entries(1);
 }
